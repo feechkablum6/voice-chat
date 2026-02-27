@@ -164,6 +164,12 @@ function handleMessage(msg) {
       addChatMessage(msg);
       break;
 
+    case 'chat-history':
+      for (const m of msg.messages) {
+        addChatMessage(m);
+      }
+      break;
+
     case 'screen-share-start':
       // Track will arrive via WebRTC ontrack
       break;

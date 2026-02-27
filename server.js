@@ -13,9 +13,11 @@ const wss = new WebSocketServer({ server });
 
 // State
 const rooms = new Map();
+const chatHistory = new Map(); // room name -> array of messages
 let nextId = 1;
 
 rooms.set('General', new Map());
+chatHistory.set('General', []);
 
 function getRoomList() {
   const roomList = [];
@@ -62,6 +64,7 @@ wss.on('connection', (ws) => {
           return;
         }
         rooms.set(name, new Map());
+        chatHistory.set(name, []);
         broadcastRoomUpdate();
         break;
       }
@@ -88,6 +91,7 @@ wss.on('connection', (ws) => {
             // Cleanup empty non-default rooms
             if (oldRoom.size === 0 && currentRoom !== 'General') {
               rooms.delete(currentRoom);
+              chatHistory.delete(currentRoom);
             }
           }
         }
@@ -103,6 +107,12 @@ wss.on('connection', (ws) => {
           }
         }
         ws.send(JSON.stringify({ type: 'joined', room: currentRoom, peers: existingPeers }));
+
+        // Send chat history
+        const history = chatHistory.get(currentRoom);
+        if (history && history.length > 0) {
+          ws.send(JSON.stringify({ type: 'chat-history', messages: history }));
+        }
 
         for (const [memberId, member] of room) {
           if (memberId !== id) {
@@ -124,6 +134,7 @@ wss.on('connection', (ws) => {
             }
             if (room.size === 0 && currentRoom !== 'General') {
               rooms.delete(currentRoom);
+              chatHistory.delete(currentRoom);
             }
           }
           currentRoom = null;
@@ -170,6 +181,12 @@ wss.on('connection', (ws) => {
         const room = rooms.get(currentRoom);
         if (!room) return;
         const chatMsg = { type: 'chat-message', from: id, username, text, timestamp: Date.now() };
+        // Save to history
+        const history = chatHistory.get(currentRoom);
+        if (history) {
+          history.push(chatMsg);
+          if (history.length > 100) history.shift();
+        }
         for (const [, member] of room) {
           member.ws.send(JSON.stringify(chatMsg));
         }
@@ -201,6 +218,7 @@ wss.on('connection', (ws) => {
         }
         if (room.size === 0 && currentRoom !== 'General') {
           rooms.delete(currentRoom);
+          chatHistory.delete(currentRoom);
         }
       }
       broadcastRoomUpdate();
