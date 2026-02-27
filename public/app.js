@@ -13,6 +13,8 @@ let localAnalyser = null;
 let vadInterval = null;
 let reconnectDelay = 1000;
 let roomsData = [];
+let isChatOpen = false;
+let unreadCount = 0;
 
 const AVATAR_COLORS = ['#5865f2','#ed4245','#3ba55c','#faa61a','#9b59b6','#e67e22','#e91e63','#1abc9c'];
 const AVATAR_ICONS = ['🐱','🤖','🔥','👻','🎮','🎵','💀','🦊','🌙','⚡','🎯','🍕'];
@@ -45,6 +47,12 @@ const toastEl = document.getElementById('toast');
 const colorPickerEl = document.getElementById('color-picker');
 const iconPickerEl = document.getElementById('icon-picker');
 const avatarPreviewEl = document.getElementById('avatar-preview');
+const chatPanel = document.getElementById('chat-panel');
+const chatMessages = document.getElementById('chat-messages');
+const chatInput = document.getElementById('chat-input');
+const chatBtn = document.getElementById('chat-btn');
+const chatCloseBtn = document.getElementById('chat-close-btn');
+const chatUnread = document.getElementById('chat-unread');
 
 const ICE_SERVERS = [{ urls: 'stun:stun.l.google.com:19302' }];
 
@@ -147,6 +155,10 @@ function handleMessage(msg) {
       }
       break;
     }
+
+    case 'chat-message':
+      addChatMessage(msg);
+      break;
 
     case 'error':
       showToast(msg.message, true);
@@ -324,6 +336,12 @@ function leaveRoom() {
   deafenBtn.classList.remove('muted');
   headphonesIcon.style.display = '';
   headphonesOffIcon.style.display = 'none';
+
+  chatMessages.innerHTML = '';
+  isChatOpen = false;
+  chatPanel.classList.remove('open');
+  unreadCount = 0;
+  chatUnread.style.display = 'none';
 
   showLobbyScreen();
 }
@@ -521,6 +539,45 @@ function broadcastUserState() {
   send({ type: 'user-state', muted: isMuted, deafened: isDeafened });
 }
 
+// ===== Chat =====
+function toggleChat() {
+  isChatOpen = !isChatOpen;
+  chatPanel.classList.toggle('open', isChatOpen);
+  if (isChatOpen) {
+    unreadCount = 0;
+    chatUnread.style.display = 'none';
+    chatInput.focus();
+  }
+}
+
+function sendChatMessage() {
+  const text = chatInput.value.trim();
+  if (!text) return;
+  send({ type: 'chat-message', text });
+  chatInput.value = '';
+}
+
+function addChatMessage(msg) {
+  const el = document.createElement('div');
+  el.className = 'chat-msg';
+  const time = new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  el.innerHTML = `
+    <div class="chat-msg-header">
+      <span class="chat-msg-username">${escapeHtml(msg.username)}</span>
+      <span class="chat-msg-time">${time}</span>
+    </div>
+    <div class="chat-msg-text">${escapeHtml(msg.text)}</div>
+  `;
+  chatMessages.appendChild(el);
+  chatMessages.scrollTop = chatMessages.scrollHeight;
+
+  if (!isChatOpen) {
+    unreadCount++;
+    chatUnread.textContent = unreadCount > 9 ? '9+' : unreadCount;
+    chatUnread.style.display = '';
+  }
+}
+
 // ===== Modal =====
 function openModal() {
   createRoomModal.classList.add('active');
@@ -591,6 +648,11 @@ function updateAvatarPreview() {
 // ===== Event Listeners =====
 muteBtn.addEventListener('click', toggleMute);
 deafenBtn.addEventListener('click', toggleDeafen);
+chatBtn.addEventListener('click', toggleChat);
+chatCloseBtn.addEventListener('click', toggleChat);
+chatInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') sendChatMessage();
+});
 leaveBtn.addEventListener('click', leaveRoom);
 createRoomBtn.addEventListener('click', openModal);
 modalCancel.addEventListener('click', closeModal);
