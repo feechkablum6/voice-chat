@@ -22,7 +22,7 @@ function getRoomList() {
   for (const [name, members] of rooms) {
     roomList.push({
       name,
-      users: Array.from(members.values()).map(m => ({ id: m.id, username: m.username })),
+      users: Array.from(members.values()).map(m => ({ id: m.id, username: m.username, avatar: m.avatar })),
       count: members.size,
     });
   }
@@ -94,19 +94,19 @@ wss.on('connection', (ws) => {
 
         username = msg.username;
         currentRoom = msg.room;
-        room.set(id, { ws, id, username });
+        room.set(id, { ws, id, username, avatar: msg.avatar || { color: '#5865f2', icon: '🐱' } });
 
         const existingPeers = [];
         for (const [memberId, member] of room) {
           if (memberId !== id) {
-            existingPeers.push({ id: memberId, username: member.username });
+            existingPeers.push({ id: memberId, username: member.username, avatar: member.avatar });
           }
         }
         ws.send(JSON.stringify({ type: 'joined', room: currentRoom, peers: existingPeers }));
 
         for (const [memberId, member] of room) {
           if (memberId !== id) {
-            member.ws.send(JSON.stringify({ type: 'peer-joined', id, username }));
+            member.ws.send(JSON.stringify({ type: 'peer-joined', id, username, avatar: msg.avatar || { color: '#5865f2', icon: '🐱' } }));
           }
         }
 
