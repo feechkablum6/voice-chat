@@ -385,7 +385,7 @@ async function createPeerConnection(peerId, peerUsername, peerAvatar, isInitiato
   const audioEl = document.createElement('audio');
   audioEl.autoplay = true;
 
-  peers.set(peerId, { username: peerUsername, avatar: peerAvatar, pc, audioEl, analyser: null, gainNode: null, muted: peerMuted || false, deafened: peerDeafened || false });
+  peers.set(peerId, { username: peerUsername, avatar: peerAvatar, pc, audioEl, analyser: null, gainNode: null, muted: peerMuted || false, deafened: peerDeafened || false, locallyMuted: false });
 
   // Add local tracks
   if (localStream) {
@@ -733,13 +733,17 @@ function showVolumePopup(peerId, anchorEl) {
   popup.id = 'volume-popup';
 
   const currentVolume = peer.gainNode ? Math.round(peer.gainNode.gain.value * 100) : 100;
+  const isLocallyMuted = peer.locallyMuted || false;
 
   popup.innerHTML = `
     <div class="volume-popup-name">${escapeHtml(peer.username)}</div>
     <div class="volume-popup-slider">
-      <input type="range" min="0" max="200" value="${currentVolume}" id="volume-slider">
-      <span class="volume-popup-value" id="volume-value">${currentVolume}%</span>
+      <input type="range" min="0" max="200" value="${isLocallyMuted ? 0 : currentVolume}" id="volume-slider" ${isLocallyMuted ? 'disabled' : ''}>
+      <span class="volume-popup-value" id="volume-value">${isLocallyMuted ? '0%' : currentVolume + '%'}</span>
     </div>
+    <button class="volume-popup-mute-btn ${isLocallyMuted ? 'active' : ''}" id="volume-mute-btn">
+      ${isLocallyMuted ? 'Размутить' : 'Замутить'}
+    </button>
   `;
 
   document.body.appendChild(popup);
@@ -751,11 +755,34 @@ function showVolumePopup(peerId, anchorEl) {
 
   const slider = popup.querySelector('#volume-slider');
   const valueEl = popup.querySelector('#volume-value');
+  const muteLocalBtn = popup.querySelector('#volume-mute-btn');
+
   slider.addEventListener('input', () => {
     const val = parseInt(slider.value);
     valueEl.textContent = `${val}%`;
     if (peer.gainNode) {
       peer.gainNode.gain.value = val / 100;
+    }
+  });
+
+  muteLocalBtn.addEventListener('click', () => {
+    peer.locallyMuted = !peer.locallyMuted;
+    if (peer.locallyMuted) {
+      peer._savedVolume = peer.gainNode ? peer.gainNode.gain.value : 1.0;
+      if (peer.gainNode) peer.gainNode.gain.value = 0;
+      slider.value = 0;
+      slider.disabled = true;
+      valueEl.textContent = '0%';
+      muteLocalBtn.textContent = 'Размутить';
+      muteLocalBtn.classList.add('active');
+    } else {
+      const restored = peer._savedVolume ?? 1.0;
+      if (peer.gainNode) peer.gainNode.gain.value = restored;
+      slider.value = Math.round(restored * 100);
+      slider.disabled = false;
+      valueEl.textContent = `${Math.round(restored * 100)}%`;
+      muteLocalBtn.textContent = 'Замутить';
+      muteLocalBtn.classList.remove('active');
     }
   });
 
