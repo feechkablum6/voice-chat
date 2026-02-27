@@ -566,6 +566,44 @@ body {
   background: var(--danger-hover);
 }
 
+/* ===== VOLUME POPUP ===== */
+.volume-popup {
+  position: fixed;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px 16px;
+  z-index: 80;
+  min-width: 180px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+}
+
+.volume-popup-name {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-bright);
+  margin-bottom: 8px;
+}
+
+.volume-popup-slider {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.volume-popup-slider input[type="range"] {
+  flex: 1;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.volume-popup-value {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  min-width: 35px;
+  text-align: right;
+}
+
 /* ===== MODAL ===== */
 
 /* ===== CHAT PANEL ===== */

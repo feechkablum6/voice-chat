@@ -260,6 +260,24 @@ function createParticipantEl(id, name, isSelf, avatar, peerState) {
     <div class="participant-name">${escapeHtml(name)}</div>
     ${isSelf ? '<div class="participant-you">ты</div>' : ''}
   `;
+
+  if (!isSelf) {
+    const avatarEl = el.querySelector('.participant-avatar');
+    avatarEl.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+      showVolumePopup(id, avatarEl);
+    });
+    let longPressTimer;
+    avatarEl.addEventListener('touchstart', (e) => {
+      longPressTimer = setTimeout(() => {
+        e.preventDefault();
+        showVolumePopup(id, avatarEl);
+      }, 500);
+    });
+    avatarEl.addEventListener('touchend', () => clearTimeout(longPressTimer));
+    avatarEl.addEventListener('touchmove', () => clearTimeout(longPressTimer));
+  }
+
   return el;
 }
 
@@ -353,9 +371,7 @@ async function createPeerConnection(peerId, peerUsername, peerAvatar, isInitiato
   const audioEl = document.createElement('audio');
   audioEl.autoplay = true;
 
-  let peerAnalyser = null;
-
-  peers.set(peerId, { username: peerUsername, avatar: peerAvatar, pc, audioEl, analyser: null, muted: peerMuted || false, deafened: peerDeafened || false });
+  peers.set(peerId, { username: peerUsername, avatar: peerAvatar, pc, audioEl, analyser: null, gainNode: null, muted: peerMuted || false, deafened: peerDeafened || false });
 
   // Add local tracks
   if (localStream) {
@@ -366,17 +382,26 @@ async function createPeerConnection(peerId, peerUsername, peerAvatar, isInitiato
 
   // Handle remote stream
   pc.ontrack = (e) => {
-    audioEl.srcObject = e.streams[0];
-    // Setup VAD for remote peer
-    try {
-      if (!audioContext) audioContext = new AudioContext();
-      const source = audioContext.createMediaStreamSource(e.streams[0]);
-      peerAnalyser = audioContext.createAnalyser();
-      peerAnalyser.fftSize = 512;
-      source.connect(peerAnalyser);
-      const peerData = peers.get(peerId);
-      if (peerData) peerData.analyser = peerAnalyser;
-    } catch (err) {}
+    const stream = e.streams[0];
+    // Create gain node for volume control
+    if (!audioContext) audioContext = new AudioContext();
+    const source = audioContext.createMediaStreamSource(stream);
+    const gainNode = audioContext.createGain();
+    gainNode.gain.value = 1.0;
+    source.connect(gainNode);
+    const dest = audioContext.createMediaStreamDestination();
+    gainNode.connect(dest);
+    audioEl.srcObject = dest.stream;
+
+    // Setup VAD analyser
+    const peerAnalyser = audioContext.createAnalyser();
+    peerAnalyser.fftSize = 512;
+    gainNode.connect(peerAnalyser);
+    const peerData = peers.get(peerId);
+    if (peerData) {
+      peerData.analyser = peerAnalyser;
+      peerData.gainNode = gainNode;
+    }
   };
 
   // ICE candidates
@@ -575,6 +600,67 @@ function addChatMessage(msg) {
     unreadCount++;
     chatUnread.textContent = unreadCount > 9 ? '9+' : unreadCount;
     chatUnread.style.display = '';
+  }
+}
+
+// ===== Volume Control =====
+let activeVolumePopup = null;
+
+function showVolumePopup(peerId, anchorEl) {
+  closeVolumePopup();
+  const peer = peers.get(peerId);
+  if (!peer) return;
+
+  const popup = document.createElement('div');
+  popup.className = 'volume-popup';
+  popup.id = 'volume-popup';
+
+  const currentVolume = peer.gainNode ? Math.round(peer.gainNode.gain.value * 100) : 100;
+
+  popup.innerHTML = `
+    <div class="volume-popup-name">${escapeHtml(peer.username)}</div>
+    <div class="volume-popup-slider">
+      <input type="range" min="0" max="200" value="${currentVolume}" id="volume-slider">
+      <span class="volume-popup-value" id="volume-value">${currentVolume}%</span>
+    </div>
+  `;
+
+  document.body.appendChild(popup);
+
+  // Position near anchor
+  const rect = anchorEl.getBoundingClientRect();
+  popup.style.left = `${rect.left + rect.width / 2 - 90}px`;
+  popup.style.top = `${rect.bottom + 8}px`;
+
+  const slider = popup.querySelector('#volume-slider');
+  const valueEl = popup.querySelector('#volume-value');
+  slider.addEventListener('input', () => {
+    const val = parseInt(slider.value);
+    valueEl.textContent = `${val}%`;
+    if (peer.gainNode) {
+      peer.gainNode.gain.value = val / 100;
+    }
+  });
+
+  activeVolumePopup = popup;
+
+  // Close on click outside (delayed to avoid instant close)
+  setTimeout(() => {
+    document.addEventListener('click', closeVolumePopupOutside);
+  }, 10);
+}
+
+function closeVolumePopup() {
+  if (activeVolumePopup) {
+    activeVolumePopup.remove();
+    activeVolumePopup = null;
+    document.removeEventListener('click', closeVolumePopupOutside);
+  }
+}
+
+function closeVolumePopupOutside(e) {
+  if (activeVolumePopup && !activeVolumePopup.contains(e.target)) {
+    closeVolumePopup();
   }
 }
 
