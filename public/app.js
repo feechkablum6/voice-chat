@@ -5,7 +5,9 @@ let username = null;
 let currentRoom = null;
 let localStream = null;
 let isMuted = false;
-const peers = new Map(); // id -> { username, avatar, pc, audioEl, analyser }
+let isDeafened = false;
+let wasMutedBeforeDeafen = false;
+const peers = new Map(); // id -> { username, avatar, pc, audioEl, analyser, muted, deafened }
 let audioContext = null;
 let localAnalyser = null;
 let vadInterval = null;
@@ -31,6 +33,9 @@ const muteBtn = document.getElementById('mute-btn');
 const micIcon = document.getElementById('mic-icon');
 const micOffIcon = document.getElementById('mic-off-icon');
 const leaveBtn = document.getElementById('leave-btn');
+const deafenBtn = document.getElementById('deafen-btn');
+const headphonesIcon = document.getElementById('headphones-icon');
+const headphonesOffIcon = document.getElementById('headphones-off-icon');
 const createRoomBtn = document.getElementById('create-room-btn');
 const createRoomModal = document.getElementById('create-room-modal');
 const roomNameInput = document.getElementById('room-name-input');
@@ -107,12 +112,12 @@ function handleMessage(msg) {
       showRoomScreen();
       // Connect to existing peers
       for (const peer of msg.peers) {
-        createPeerConnection(peer.id, peer.username, peer.avatar, true);
+        createPeerConnection(peer.id, peer.username, peer.avatar, true, peer.muted, peer.deafened);
       }
       break;
 
     case 'peer-joined':
-      createPeerConnection(msg.id, msg.username, msg.avatar, false);
+      createPeerConnection(msg.id, msg.username, msg.avatar, false, false, false);
       renderParticipants();
       break;
 
@@ -132,6 +137,16 @@ function handleMessage(msg) {
     case 'ice-candidate':
       handleIceCandidate(msg);
       break;
+
+    case 'user-state': {
+      const peer = peers.get(msg.id);
+      if (peer) {
+        peer.muted = msg.muted;
+        peer.deafened = msg.deafened;
+        renderParticipants();
+      }
+      break;
+    }
 
     case 'error':
       showToast(msg.message, true);
@@ -195,25 +210,41 @@ function renderParticipants() {
   participantsEl.innerHTML = '';
 
   // Add self
-  const selfEl = createParticipantEl(myId, username, true, { color: selectedColor, icon: selectedIcon });
+  const selfEl = createParticipantEl(myId, username, true, { color: selectedColor, icon: selectedIcon }, null);
   participantsEl.appendChild(selfEl);
 
   // Add peers
   for (const [id, peer] of peers) {
-    const el = createParticipantEl(id, peer.username, false, peer.avatar);
+    const el = createParticipantEl(id, peer.username, false, peer.avatar, { muted: peer.muted, deafened: peer.deafened });
     participantsEl.appendChild(el);
   }
 }
 
-function createParticipantEl(id, name, isSelf, avatar) {
+function createParticipantEl(id, name, isSelf, avatar, peerState) {
   const el = document.createElement('div');
   el.className = 'participant';
   el.id = `participant-${id}`;
-  if (isSelf && isMuted) el.classList.add('muted');
+
+  const isMutedState = isSelf ? isMuted : peerState?.muted;
+  const isDeafenedState = isSelf ? isDeafened : peerState?.deafened;
+
+  if (isMutedState) el.classList.add('muted');
+  if (isDeafenedState) el.classList.add('deafened');
+
   const avatarColor = avatar ? avatar.color : '#5865f2';
   const avatarIcon = avatar ? avatar.icon : name[0].toUpperCase();
+
+  let badges = '';
+  if (!isSelf) {
+    if (isMutedState) badges += '<div class="status-badge mute-badge" title="Микрофон выключен"><svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M19 11h-1.7c0 .74-.16 1.43-.43 2.05l1.23 1.23c.56-.98.9-2.09.9-3.28zm-4.02.17c0-.06.02-.11.02-.17V5c0-1.66-1.34-3-3-3S9 3.34 9 5v.18l5.98 5.99zM4.27 3L3 4.27l6.01 6.01V11c0 1.66 1.33 3 2.99 3 .22 0 .44-.03.65-.08l1.66 1.66c-.71.33-1.5.52-2.31.52-2.76 0-5.3-2.1-5.3-5.1H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c.91-.13 1.77-.45 2.54-.9L19.73 21 21 19.73 4.27 3z"/></svg></div>';
+    if (isDeafenedState) badges += '<div class="status-badge deafen-badge" title="Звук выключен"><svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M12 1c-4.97 0-9 4.03-9 9v7c0 1.66 1.34 3 3 3h3v-8H5v-2c0-3.87 3.13-7 7-7s7 3.13 7 7v2h-4v8h3c1.66 0 3-1.34 3-3v-7c0-4.97-4.03-9-9-9z"/><line x1="3" y1="3" x2="21" y2="21" stroke="currentColor" stroke-width="2"/></svg></div>';
+  }
+
   el.innerHTML = `
-    <div class="participant-avatar" style="background: ${avatarColor}">${avatarIcon}</div>
+    <div class="participant-avatar" style="background: ${avatarColor}">
+      ${avatarIcon}
+      ${badges ? '<div class="status-badges">' + badges + '</div>' : ''}
+    </div>
     <div class="participant-name">${escapeHtml(name)}</div>
     ${isSelf ? '<div class="participant-you">ты</div>' : ''}
   `;
@@ -289,11 +320,16 @@ function leaveRoom() {
   micIcon.style.display = '';
   micOffIcon.style.display = 'none';
 
+  isDeafened = false;
+  deafenBtn.classList.remove('muted');
+  headphonesIcon.style.display = '';
+  headphonesOffIcon.style.display = 'none';
+
   showLobbyScreen();
 }
 
 // ===== WebRTC =====
-async function createPeerConnection(peerId, peerUsername, peerAvatar, isInitiator) {
+async function createPeerConnection(peerId, peerUsername, peerAvatar, isInitiator, peerMuted, peerDeafened) {
   const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
 
   const audioEl = document.createElement('audio');
@@ -301,7 +337,7 @@ async function createPeerConnection(peerId, peerUsername, peerAvatar, isInitiato
 
   let peerAnalyser = null;
 
-  peers.set(peerId, { username: peerUsername, avatar: peerAvatar, pc, audioEl, analyser: null });
+  peers.set(peerId, { username: peerUsername, avatar: peerAvatar, pc, audioEl, analyser: null, muted: peerMuted || false, deafened: peerDeafened || false });
 
   // Add local tracks
   if (localStream) {
@@ -445,6 +481,40 @@ function toggleMute() {
     selfEl.classList.toggle('muted', isMuted);
     if (isMuted) selfEl.classList.remove('speaking');
   }
+
+  broadcastUserState();
+}
+
+// ===== Deafen =====
+function toggleDeafen() {
+  isDeafened = !isDeafened;
+
+  if (isDeafened) {
+    // Save mute state, then mute
+    wasMutedBeforeDeafen = isMuted;
+    if (!isMuted) toggleMute();
+    // Mute all incoming audio
+    for (const [, peer] of peers) {
+      peer.audioEl.muted = true;
+    }
+  } else {
+    // Unmute incoming audio
+    for (const [, peer] of peers) {
+      peer.audioEl.muted = false;
+    }
+    // Restore mute state
+    if (!wasMutedBeforeDeafen && isMuted) toggleMute();
+  }
+
+  deafenBtn.classList.toggle('muted', isDeafened);
+  headphonesIcon.style.display = isDeafened ? 'none' : '';
+  headphonesOffIcon.style.display = isDeafened ? '' : 'none';
+
+  broadcastUserState();
+}
+
+function broadcastUserState() {
+  send({ type: 'user-state', muted: isMuted, deafened: isDeafened });
 }
 
 // ===== Modal =====
@@ -516,6 +586,7 @@ function updateAvatarPreview() {
 
 // ===== Event Listeners =====
 muteBtn.addEventListener('click', toggleMute);
+deafenBtn.addEventListener('click', toggleDeafen);
 leaveBtn.addEventListener('click', leaveRoom);
 createRoomBtn.addEventListener('click', openModal);
 modalCancel.addEventListener('click', closeModal);

@@ -428,6 +428,7 @@ body {
   justify-content: center;
   border: 3px solid transparent;
   transition: border-color 0.2s, box-shadow 0.2s;
+  position: relative;
 }
 
 .participant.speaking .participant-avatar {
@@ -436,7 +437,39 @@ body {
 }
 
 .participant.muted .participant-avatar {
+  opacity: 0.7;
+}
+
+.participant.deafened .participant-avatar {
   opacity: 0.5;
+}
+
+/* ===== STATUS BADGES ===== */
+.status-badges {
+  position: absolute;
+  bottom: -2px;
+  right: -2px;
+  display: flex;
+  gap: 2px;
+}
+
+.status-badge {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--bg-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid var(--bg-primary);
+}
+
+.mute-badge svg {
+  color: var(--danger);
+}
+
+.deafen-badge svg {
+  color: var(--danger);
 }
 
 .participant-name {
