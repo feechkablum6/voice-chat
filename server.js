@@ -162,6 +162,19 @@ wss.on('connection', (ws) => {
         }
         break;
       }
+
+      case 'chat-message': {
+        if (!currentRoom || !username) return;
+        const text = msg.text?.trim();
+        if (!text || text.length > 500) return;
+        const room = rooms.get(currentRoom);
+        if (!room) return;
+        const chatMsg = { type: 'chat-message', from: id, username, text, timestamp: Date.now() };
+        for (const [, member] of room) {
+          member.ws.send(JSON.stringify(chatMsg));
+        }
+        break;
+      }
     }
   });
 
