@@ -477,6 +477,16 @@ body {
   opacity: 0.5;
 }
 
+.participant:not(.self) .participant-avatar {
+  cursor: pointer;
+  transition: border-color 0.2s, box-shadow 0.2s, transform 0.15s;
+}
+
+.participant:not(.self) .participant-avatar:hover {
+  transform: scale(1.08);
+  box-shadow: 0 0 12px rgba(88, 101, 242, 0.4);
+}
+
 /* ===== STATUS BADGES ===== */
 .status-badges {
   position: absolute;

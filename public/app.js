@@ -253,7 +253,7 @@ function renderParticipants() {
 
 function createParticipantEl(id, name, isSelf, avatar, peerState) {
   const el = document.createElement('div');
-  el.className = 'participant';
+  el.className = 'participant' + (isSelf ? ' self' : '');
   el.id = `participant-${id}`;
 
   const isMutedState = isSelf ? isMuted : peerState?.muted;
@@ -282,19 +282,10 @@ function createParticipantEl(id, name, isSelf, avatar, peerState) {
 
   if (!isSelf) {
     const avatarEl = el.querySelector('.participant-avatar');
-    avatarEl.addEventListener('contextmenu', (e) => {
-      e.preventDefault();
+    avatarEl.addEventListener('click', (e) => {
+      e.stopPropagation();
       showVolumePopup(id, avatarEl);
     });
-    let longPressTimer;
-    avatarEl.addEventListener('touchstart', (e) => {
-      longPressTimer = setTimeout(() => {
-        e.preventDefault();
-        showVolumePopup(id, avatarEl);
-      }, 500);
-    });
-    avatarEl.addEventListener('touchend', () => clearTimeout(longPressTimer));
-    avatarEl.addEventListener('touchmove', () => clearTimeout(longPressTimer));
   }
 
   return el;
