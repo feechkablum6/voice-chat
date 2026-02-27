@@ -554,6 +554,12 @@ function setupLocalVAD() {
 
 // ===== Mute =====
 function toggleMute() {
+  if (isMuted && isDeafened) {
+    // Unmuting while deafened — undeafen first (which will also unmute via its logic)
+    toggleDeafen();
+    return;
+  }
+
   isMuted = !isMuted;
   if (localStream) {
     for (const track of localStream.getAudioTracks()) {
