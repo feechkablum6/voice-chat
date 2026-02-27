@@ -5,12 +5,18 @@ let username = null;
 let currentRoom = null;
 let localStream = null;
 let isMuted = false;
-const peers = new Map(); // id -> { username, pc, audioEl, analyser }
+const peers = new Map(); // id -> { username, avatar, pc, audioEl, analyser }
 let audioContext = null;
 let localAnalyser = null;
 let vadInterval = null;
 let reconnectDelay = 1000;
 let roomsData = [];
+
+const AVATAR_COLORS = ['#5865f2','#ed4245','#3ba55c','#faa61a','#9b59b6','#e67e22','#e91e63','#1abc9c'];
+const AVATAR_ICONS = ['🐱','🤖','🔥','👻','🎮','🎵','💀','🦊','🌙','⚡','🎯','🍕'];
+
+let selectedColor = localStorage.getItem('avatar-color') || AVATAR_COLORS[0];
+let selectedIcon = localStorage.getItem('avatar-icon') || AVATAR_ICONS[0];
 
 // ===== DOM =====
 const lobbyScreen = document.getElementById('lobby');
@@ -31,6 +37,9 @@ const roomNameInput = document.getElementById('room-name-input');
 const modalCancel = document.getElementById('modal-cancel');
 const modalCreate = document.getElementById('modal-create');
 const toastEl = document.getElementById('toast');
+const colorPickerEl = document.getElementById('color-picker');
+const iconPickerEl = document.getElementById('icon-picker');
+const avatarPreviewEl = document.getElementById('avatar-preview');
 
 const ICE_SERVERS = [{ urls: 'stun:stun.l.google.com:19302' }];
 
@@ -98,12 +107,12 @@ function handleMessage(msg) {
       showRoomScreen();
       // Connect to existing peers
       for (const peer of msg.peers) {
-        createPeerConnection(peer.id, peer.username, true);
+        createPeerConnection(peer.id, peer.username, peer.avatar, true);
       }
       break;
 
     case 'peer-joined':
-      createPeerConnection(msg.id, msg.username, false);
+      createPeerConnection(msg.id, msg.username, msg.avatar, false);
       renderParticipants();
       break;
 
@@ -142,7 +151,7 @@ function renderRoomList() {
     if (room.users.length > 0) {
       avatarsHTML = '<div class="room-item-avatars">';
       for (const u of room.users.slice(0, 5)) {
-        avatarsHTML += `<div class="room-item-avatar">${u.username[0].toUpperCase()}</div>`;
+        avatarsHTML += `<div class="room-item-avatar" style="background:${u.avatar?.color || '#5865f2'}">${u.avatar?.icon || u.username[0].toUpperCase()}</div>`;
       }
       avatarsHTML += '</div>';
     }
@@ -186,23 +195,25 @@ function renderParticipants() {
   participantsEl.innerHTML = '';
 
   // Add self
-  const selfEl = createParticipantEl(myId, username, true);
+  const selfEl = createParticipantEl(myId, username, true, { color: selectedColor, icon: selectedIcon });
   participantsEl.appendChild(selfEl);
 
   // Add peers
   for (const [id, peer] of peers) {
-    const el = createParticipantEl(id, peer.username, false);
+    const el = createParticipantEl(id, peer.username, false, peer.avatar);
     participantsEl.appendChild(el);
   }
 }
 
-function createParticipantEl(id, name, isSelf) {
+function createParticipantEl(id, name, isSelf, avatar) {
   const el = document.createElement('div');
   el.className = 'participant';
   el.id = `participant-${id}`;
   if (isSelf && isMuted) el.classList.add('muted');
+  const avatarColor = avatar ? avatar.color : '#5865f2';
+  const avatarIcon = avatar ? avatar.icon : name[0].toUpperCase();
   el.innerHTML = `
-    <div class="participant-avatar">${name[0].toUpperCase()}</div>
+    <div class="participant-avatar" style="background: ${avatarColor}">${avatarIcon}</div>
     <div class="participant-name">${escapeHtml(name)}</div>
     ${isSelf ? '<div class="participant-you">ты</div>' : ''}
   `;
@@ -236,6 +247,7 @@ async function joinRoom(roomName) {
     return;
   }
   username = name;
+  localStorage.setItem('username', username);
 
   // Get microphone
   try {
@@ -249,7 +261,7 @@ async function joinRoom(roomName) {
     setupLocalVAD();
   }
 
-  send({ type: 'join', room: roomName, username });
+  send({ type: 'join', room: roomName, username, avatar: { color: selectedColor, icon: selectedIcon } });
 }
 
 function leaveRoom() {
@@ -281,7 +293,7 @@ function leaveRoom() {
 }
 
 // ===== WebRTC =====
-async function createPeerConnection(peerId, peerUsername, isInitiator) {
+async function createPeerConnection(peerId, peerUsername, peerAvatar, isInitiator) {
   const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
 
   const audioEl = document.createElement('audio');
@@ -289,7 +301,7 @@ async function createPeerConnection(peerId, peerUsername, isInitiator) {
 
   let peerAnalyser = null;
 
-  peers.set(peerId, { username: peerUsername, pc, audioEl, analyser: null });
+  peers.set(peerId, { username: peerUsername, avatar: peerAvatar, pc, audioEl, analyser: null });
 
   // Add local tracks
   if (localStream) {
@@ -460,6 +472,48 @@ function escapeHtml(str) {
   return div.innerHTML;
 }
 
+function initAvatarPicker() {
+  // Colors
+  for (const color of AVATAR_COLORS) {
+    const el = document.createElement('div');
+    el.className = 'color-option' + (color === selectedColor ? ' selected' : '');
+    el.style.background = color;
+    el.addEventListener('click', () => {
+      selectedColor = color;
+      localStorage.setItem('avatar-color', color);
+      colorPickerEl.querySelectorAll('.color-option').forEach(e => e.classList.remove('selected'));
+      el.classList.add('selected');
+      updateAvatarPreview();
+    });
+    colorPickerEl.appendChild(el);
+  }
+
+  // Icons
+  for (const icon of AVATAR_ICONS) {
+    const el = document.createElement('div');
+    el.className = 'icon-option' + (icon === selectedIcon ? ' selected' : '');
+    el.textContent = icon;
+    el.addEventListener('click', () => {
+      selectedIcon = icon;
+      localStorage.setItem('avatar-icon', icon);
+      iconPickerEl.querySelectorAll('.icon-option').forEach(e => e.classList.remove('selected'));
+      el.classList.add('selected');
+      updateAvatarPreview();
+    });
+    iconPickerEl.appendChild(el);
+  }
+
+  updateAvatarPreview();
+
+  const savedUsername = localStorage.getItem('username');
+  if (savedUsername) usernameInput.value = savedUsername;
+}
+
+function updateAvatarPreview() {
+  avatarPreviewEl.style.background = selectedColor;
+  avatarPreviewEl.textContent = selectedIcon;
+}
+
 // ===== Event Listeners =====
 muteBtn.addEventListener('click', toggleMute);
 leaveBtn.addEventListener('click', leaveRoom);
@@ -485,4 +539,5 @@ createRoomModal.addEventListener('click', (e) => {
 });
 
 // ===== Init =====
+initAvatarPicker();
 connectWS();

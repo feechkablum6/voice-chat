@@ -91,6 +91,96 @@ body {
   color: var(--text-muted);
 }
 
+/* ===== AVATAR PICKER ===== */
+.avatar-picker {
+  margin-bottom: 32px;
+  background: var(--bg-secondary);
+  border-radius: var(--radius-lg);
+  padding: 20px;
+}
+
+.avatar-preview {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 16px;
+}
+
+.avatar-preview-circle {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  background: #5865f2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 2rem;
+  transition: background 0.2s;
+}
+
+.picker-section {
+  margin-bottom: 12px;
+}
+
+.picker-section:last-child {
+  margin-bottom: 0;
+}
+
+.picker-section label {
+  display: block;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+
+.color-options, .icon-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.color-option {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 3px solid transparent;
+  cursor: pointer;
+  transition: border-color 0.15s, transform 0.15s;
+}
+
+.color-option:hover {
+  transform: scale(1.15);
+}
+
+.color-option.selected {
+  border-color: var(--text-bright);
+}
+
+.icon-option {
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius);
+  border: 2px solid transparent;
+  background: var(--bg-tertiary);
+  cursor: pointer;
+  font-size: 1.2rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: border-color 0.15s, transform 0.15s;
+}
+
+.icon-option:hover {
+  transform: scale(1.1);
+}
+
+.icon-option.selected {
+  border-color: var(--accent);
+  background: var(--bg-hover);
+}
+
 .rooms-section {
   background: var(--bg-secondary);
   border-radius: var(--radius-lg);
