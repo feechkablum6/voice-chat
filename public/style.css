@@ -68,7 +68,7 @@ body {
 }
 
 .join-form {
-  margin-bottom: 32px;
+  margin-bottom: 0;
 }
 
 .join-form input {
@@ -91,12 +91,131 @@ body {
   color: var(--text-muted);
 }
 
-/* ===== AVATAR PICKER ===== */
-.avatar-picker {
-  margin-bottom: 32px;
+/* ===== ACCORDION LOBBY ===== */
+.accordion-step {
   background: var(--bg-secondary);
   border-radius: var(--radius-lg);
-  padding: 20px;
+  margin-bottom: 8px;
+  overflow: hidden;
+  transition: opacity 0.3s;
+}
+
+.accordion-step.locked {
+  opacity: 0.4;
+  pointer-events: none;
+}
+
+.accordion-step.locked .accordion-body {
+  max-height: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+.accordion-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 20px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.accordion-header:hover {
+  background: var(--bg-hover);
+}
+
+.accordion-step.locked .accordion-header {
+  cursor: default;
+}
+
+.accordion-step.locked .accordion-header:hover {
+  background: transparent;
+}
+
+.accordion-step-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.accordion-step-number {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--bg-tertiary);
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.accordion-step.completed .accordion-step-number {
+  background: var(--success);
+  color: white;
+  font-size: 0;
+}
+
+.accordion-step.completed .accordion-step-number::after {
+  content: '✓';
+  font-size: 0.75rem;
+}
+
+.accordion-step.active .accordion-step-number {
+  background: var(--accent);
+  color: white;
+}
+
+.accordion-step-title {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text-bright);
+}
+
+.accordion-step.locked .accordion-step-title {
+  color: var(--text-muted);
+}
+
+.accordion-step-preview {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.accordion-mini-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.9rem;
+}
+
+.accordion-preview-text {
+  font-size: 0.85rem;
+  color: var(--text-normal);
+  font-weight: 500;
+}
+
+.accordion-body {
+  max-height: 500px;
+  overflow: hidden;
+  transition: max-height 0.3s ease;
+  padding: 0 20px 20px;
+}
+
+.accordion-step:not(.active) .accordion-body {
+  max-height: 0;
+  padding: 0 20px;
+}
+
+/* ===== AVATAR PICKER ===== */
+.avatar-picker {
+  padding: 0;
+  background: none;
+  border-radius: 0;
 }
 
 .avatar-preview {
@@ -182,9 +301,9 @@ body {
 }
 
 .rooms-section {
-  background: var(--bg-secondary);
-  border-radius: var(--radius-lg);
-  padding: 20px;
+  padding: 0;
+  background: none;
+  border-radius: 0;
 }
 
 .rooms-header {

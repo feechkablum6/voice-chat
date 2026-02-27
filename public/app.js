@@ -880,6 +880,7 @@ function initAvatarPicker() {
       colorPickerEl.querySelectorAll('.color-option').forEach(e => e.classList.remove('selected'));
       el.classList.add('selected');
       updateAvatarPreview();
+      updateAccordionMiniAvatar();
     });
     colorPickerEl.appendChild(el);
   }
@@ -895,19 +896,132 @@ function initAvatarPicker() {
       iconPickerEl.querySelectorAll('.icon-option').forEach(e => e.classList.remove('selected'));
       el.classList.add('selected');
       updateAvatarPreview();
+      updateAccordionMiniAvatar();
     });
     iconPickerEl.appendChild(el);
   }
 
   updateAvatarPreview();
-
-  const savedUsername = localStorage.getItem('username');
-  if (savedUsername) usernameInput.value = savedUsername;
 }
 
 function updateAvatarPreview() {
   avatarPreviewEl.style.background = selectedColor;
   avatarPreviewEl.textContent = selectedIcon;
+}
+
+function updateAccordionMiniAvatar() {
+  const miniAvatar = document.getElementById('accordion-mini-avatar');
+  if (miniAvatar) {
+    miniAvatar.style.background = selectedColor;
+    miniAvatar.textContent = selectedIcon;
+  }
+}
+
+// ===== Accordion Lobby =====
+let currentStep = 1;
+
+function initAccordion() {
+  // Step 1 is active by default — avatar is pre-selected from localStorage
+  // So immediately complete step 1 and unlock step 2
+  completeStep(1);
+
+  // If username saved, complete step 2
+  const savedUsername = localStorage.getItem('username');
+  if (savedUsername) {
+    usernameInput.value = savedUsername;
+    completeStep(2);
+  }
+
+  // Headers click to go back
+  document.getElementById('step-avatar-header').addEventListener('click', () => goToStep(1));
+  document.getElementById('step-username-header').addEventListener('click', () => {
+    if (!document.getElementById('step-username').classList.contains('locked')) goToStep(2);
+  });
+  document.getElementById('step-rooms-header').addEventListener('click', () => {
+    if (!document.getElementById('step-rooms').classList.contains('locked')) goToStep(3);
+  });
+
+  // Username input — unlock step 3 when typing
+  usernameInput.addEventListener('input', () => {
+    if (usernameInput.value.trim().length >= 1) {
+      completeStep(2);
+    } else {
+      lockStep(3);
+      document.getElementById('step-username').classList.remove('completed');
+      document.getElementById('step-username').classList.add('active');
+      document.getElementById('step-username-preview').style.display = 'none';
+    }
+  });
+}
+
+function goToStep(step) {
+  document.querySelectorAll('.accordion-step').forEach(el => {
+    if (!el.classList.contains('locked')) {
+      el.classList.remove('active');
+    }
+  });
+
+  const stepMap = { 1: 'step-avatar', 2: 'step-username', 3: 'step-rooms' };
+  const el = document.getElementById(stepMap[step]);
+  if (el && !el.classList.contains('locked')) {
+    el.classList.add('active');
+    el.classList.remove('completed');
+    currentStep = step;
+
+    if (step === 2) {
+      setTimeout(() => usernameInput.focus(), 100);
+    }
+  }
+}
+
+function completeStep(step) {
+  const stepMap = { 1: 'step-avatar', 2: 'step-username', 3: 'step-rooms' };
+  const el = document.getElementById(stepMap[step]);
+  if (!el) return;
+
+  el.classList.remove('locked', 'active');
+  el.classList.add('completed');
+
+  if (step === 1) {
+    const preview = document.getElementById('step-avatar-preview');
+    const miniAvatar = document.getElementById('accordion-mini-avatar');
+    miniAvatar.style.background = selectedColor;
+    miniAvatar.textContent = selectedIcon;
+    preview.style.display = '';
+  }
+  if (step === 2) {
+    const preview = document.getElementById('step-username-preview');
+    const previewText = document.getElementById('accordion-preview-username');
+    previewText.textContent = usernameInput.value.trim();
+    preview.style.display = '';
+  }
+
+  // Unlock and activate next step
+  const nextStep = step + 1;
+  if (nextStep <= 3) {
+    const nextEl = document.getElementById(stepMap[nextStep]);
+    if (nextEl) {
+      nextEl.classList.remove('locked');
+      if (!nextEl.classList.contains('completed')) {
+        nextEl.classList.add('active');
+        currentStep = nextStep;
+        if (nextStep === 2) {
+          setTimeout(() => usernameInput.focus(), 100);
+        }
+      }
+    }
+  }
+}
+
+function lockStep(step) {
+  const stepMap = { 1: 'step-avatar', 2: 'step-username', 3: 'step-rooms' };
+  for (let s = step; s <= 3; s++) {
+    const el = document.getElementById(stepMap[s]);
+    if (el) {
+      el.classList.remove('active', 'completed');
+      el.classList.add('locked');
+    }
+  }
 }
 
 // ===== Event Listeners =====
@@ -943,4 +1057,5 @@ createRoomModal.addEventListener('click', (e) => {
 
 // ===== Init =====
 initAvatarPicker();
+initAccordion();
 connectWS();

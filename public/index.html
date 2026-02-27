@@ -12,28 +12,70 @@
     <div class="lobby-container">
       <h1 class="logo">Voice Chat</h1>
       <p class="subtitle">Голосовой чат для друзей</p>
-      <div class="join-form">
-        <input type="text" id="username-input" placeholder="Твоё имя..." maxlength="20" autocomplete="off">
+
+      <!-- Step 1: Avatar -->
+      <div class="accordion-step active" id="step-avatar">
+        <div class="accordion-header" id="step-avatar-header">
+          <div class="accordion-step-info">
+            <span class="accordion-step-number">1</span>
+            <span class="accordion-step-title">Выбери аватарку</span>
+          </div>
+          <div class="accordion-step-preview" id="step-avatar-preview" style="display:none">
+            <div class="accordion-mini-avatar" id="accordion-mini-avatar"></div>
+          </div>
+        </div>
+        <div class="accordion-body">
+          <div class="avatar-picker">
+            <div class="avatar-preview">
+              <div id="avatar-preview" class="avatar-preview-circle">🐱</div>
+            </div>
+            <div class="picker-section">
+              <label>Цвет</label>
+              <div id="color-picker" class="color-options"></div>
+            </div>
+            <div class="picker-section">
+              <label>Иконка</label>
+              <div id="icon-picker" class="icon-options"></div>
+            </div>
+          </div>
+        </div>
       </div>
-      <div class="avatar-picker">
-        <div class="avatar-preview">
-          <div id="avatar-preview" class="avatar-preview-circle">🐱</div>
+
+      <!-- Step 2: Username -->
+      <div class="accordion-step locked" id="step-username">
+        <div class="accordion-header" id="step-username-header">
+          <div class="accordion-step-info">
+            <span class="accordion-step-number">2</span>
+            <span class="accordion-step-title">Как тебя зовут?</span>
+          </div>
+          <div class="accordion-step-preview" id="step-username-preview" style="display:none">
+            <span class="accordion-preview-text" id="accordion-preview-username"></span>
+          </div>
         </div>
-        <div class="picker-section">
-          <label>Цвет</label>
-          <div id="color-picker" class="color-options"></div>
-        </div>
-        <div class="picker-section">
-          <label>Иконка</label>
-          <div id="icon-picker" class="icon-options"></div>
+        <div class="accordion-body">
+          <div class="join-form">
+            <input type="text" id="username-input" placeholder="Твоё имя..." maxlength="20" autocomplete="off">
+          </div>
         </div>
       </div>
-      <div class="rooms-section">
-        <div class="rooms-header">
-          <h2>Комнаты</h2>
-          <button id="create-room-btn" class="btn-icon" title="Создать комнату">+</button>
+
+      <!-- Step 3: Room -->
+      <div class="accordion-step locked" id="step-rooms">
+        <div class="accordion-header" id="step-rooms-header">
+          <div class="accordion-step-info">
+            <span class="accordion-step-number">3</span>
+            <span class="accordion-step-title">Выбери комнату</span>
+          </div>
         </div>
-        <div id="room-list" class="room-list"></div>
+        <div class="accordion-body">
+          <div class="rooms-section">
+            <div class="rooms-header">
+              <h2>Комнаты</h2>
+              <button id="create-room-btn" class="btn-icon" title="Создать комнату">+</button>
+            </div>
+            <div id="room-list" class="room-list"></div>
+          </div>
+        </div>
       </div>
     </div>
   </div>
