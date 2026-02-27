@@ -175,6 +175,19 @@ wss.on('connection', (ws) => {
         }
         break;
       }
+
+      case 'screen-share-start':
+      case 'screen-share-stop': {
+        if (!currentRoom) return;
+        const room = rooms.get(currentRoom);
+        if (!room) return;
+        for (const [memberId, member] of room) {
+          if (memberId !== id) {
+            member.ws.send(JSON.stringify({ type: msg.type, id, username }));
+          }
+        }
+        break;
+      }
     }
   });
 
