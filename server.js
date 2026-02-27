@@ -59,8 +59,8 @@ wss.on('connection', (ws) => {
     switch (msg.type) {
       case 'create-room': {
         const name = msg.name?.trim();
-        if (!name || rooms.has(name)) {
-          ws.send(JSON.stringify({ type: 'error', message: 'Комната уже существует или имя пустое' }));
+        if (!name || name.length > 30 || rooms.has(name)) {
+          ws.send(JSON.stringify({ type: 'error', message: !name ? 'Имя комнаты пустое' : name.length > 30 ? 'Имя комнаты слишком длинное' : 'Комната уже существует' }));
           return;
         }
         rooms.set(name, new Map());
@@ -80,6 +80,12 @@ wss.on('connection', (ws) => {
           return;
         }
 
+        const uname = msg.username?.trim();
+        if (!uname || uname.length > 20) {
+          ws.send(JSON.stringify({ type: 'error', message: 'Невалидное имя пользователя' }));
+          return;
+        }
+
         // Leave current room first
         if (currentRoom) {
           const oldRoom = rooms.get(currentRoom);
@@ -96,7 +102,7 @@ wss.on('connection', (ws) => {
           }
         }
 
-        username = msg.username;
+        username = uname;
         currentRoom = msg.room;
         room.set(id, { ws, id, username, avatar: msg.avatar || { color: '#5865f2', icon: '🐱' }, muted: false, deafened: false });
 
@@ -171,6 +177,28 @@ wss.on('connection', (ws) => {
             m.ws.send(JSON.stringify({ type: 'user-state', id, muted: !!msg.muted, deafened: !!msg.deafened }));
           }
         }
+        break;
+      }
+
+      case 'update-profile': {
+        if (!currentRoom) return;
+        const room = rooms.get(currentRoom);
+        if (!room) return;
+        const newUsername = msg.username?.trim();
+        if (!newUsername || newUsername.length > 20) return;
+        username = newUsername;
+        const member = room.get(id);
+        if (member) {
+          member.username = newUsername;
+          member.avatar = msg.avatar || member.avatar;
+        }
+        // Broadcast to all others in room
+        for (const [memberId, m] of room) {
+          if (memberId !== id) {
+            m.ws.send(JSON.stringify({ type: 'profile-updated', id, username: newUsername, avatar: msg.avatar || member.avatar }));
+          }
+        }
+        broadcastRoomUpdate();
         break;
       }
 

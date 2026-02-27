@@ -81,11 +81,50 @@ function connectWS() {
   };
 
   ws.onmessage = (e) => {
-    const msg = JSON.parse(e.data);
+    let msg;
+    try {
+      msg = JSON.parse(e.data);
+    } catch {
+      return;
+    }
     handleMessage(msg);
   };
 
   ws.onclose = () => {
+    // If we were in a room, clean up and return to lobby
+    if (currentRoom) {
+      for (const [id] of peers) {
+        removePeer(id);
+      }
+      if (localStream) {
+        localStream.getTracks().forEach(t => t.stop());
+        localStream = null;
+      }
+      if (vadInterval) {
+        clearInterval(vadInterval);
+        vadInterval = null;
+      }
+      isMuted = false;
+      isDeafened = false;
+      stopScreenShare();
+      activeScreenShares.clear();
+      chatMessages.innerHTML = '';
+      isChatOpen = false;
+      chatPanel.classList.remove('open');
+      unreadCount = 0;
+      chatUnread.style.display = 'none';
+      currentRoom = null;
+
+      muteBtn.classList.remove('muted');
+      micIcon.style.display = '';
+      micOffIcon.style.display = 'none';
+      deafenBtn.classList.remove('muted');
+      headphonesIcon.style.display = '';
+      headphonesOffIcon.style.display = 'none';
+
+      showLobbyScreen();
+      showToast('Соединение потеряно — переподключение...', true);
+    }
     setTimeout(() => {
       reconnectDelay = Math.min(reconnectDelay * 2, 30000);
       connectWS();
@@ -120,6 +159,11 @@ function handleMessage(msg) {
       break;
 
     case 'joined':
+      // Reset chat state for new room
+      chatMessages.innerHTML = '';
+      unreadCount = 0;
+      chatUnread.style.display = 'none';
+
       currentRoom = msg.room;
       showRoomScreen();
       // Connect to existing peers
@@ -178,6 +222,16 @@ function handleMessage(msg) {
       activeScreenShares.delete(msg.id);
       renderScreenShares();
       break;
+
+    case 'profile-updated': {
+      const peer = peers.get(msg.id);
+      if (peer) {
+        peer.username = msg.username;
+        peer.avatar = msg.avatar;
+        renderParticipants();
+      }
+      break;
+    }
 
     case 'error':
       showToast(msg.message, true);
@@ -280,6 +334,15 @@ function createParticipantEl(id, name, isSelf, avatar, peerState) {
     ${isSelf ? '<div class="participant-you">ты</div>' : ''}
   `;
 
+  if (isSelf) {
+    const avatarEl = el.querySelector('.participant-avatar');
+    avatarEl.style.cursor = 'pointer';
+    avatarEl.addEventListener('click', (e) => {
+      e.stopPropagation();
+      showProfilePopup(avatarEl);
+    });
+  }
+
   if (!isSelf) {
     const avatarEl = el.querySelector('.participant-avatar');
     avatarEl.addEventListener('click', (e) => {
@@ -320,12 +383,22 @@ async function joinRoom(roomName) {
   username = name;
   localStorage.setItem('username', username);
 
+  // Resume AudioContext on user gesture
+  if (audioContext && audioContext.state === 'suspended') {
+    audioContext.resume();
+  }
+
   // Get microphone
   try {
     localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
   } catch (err) {
     showToast('Микрофон недоступен — подключаешься в режиме прослушивания', true);
     localStream = null;
+    isMuted = true;
+    muteBtn.classList.add('muted', 'disabled');
+    muteBtn.title = 'Микрофон недоступен';
+    micIcon.style.display = 'none';
+    micOffIcon.style.display = '';
   }
 
   if (localStream) {
@@ -336,6 +409,8 @@ async function joinRoom(roomName) {
 }
 
 function leaveRoom() {
+  closeProfilePopup();
+  closeVolumePopup();
   send({ type: 'leave' });
 
   // Cleanup all peers
@@ -356,7 +431,8 @@ function leaveRoom() {
   }
 
   isMuted = false;
-  muteBtn.classList.remove('muted');
+  muteBtn.classList.remove('muted', 'disabled');
+  muteBtn.title = '';
   micIcon.style.display = '';
   micOffIcon.style.display = 'none';
 
@@ -394,6 +470,16 @@ async function createPeerConnection(peerId, peerUsername, peerAvatar, isInitiato
     }
   }
 
+  // Add screen share track if active
+  if (screenStream) {
+    const videoTrack = screenStream.getVideoTracks()[0];
+    if (videoTrack) {
+      const sender = pc.addTrack(videoTrack, screenStream);
+      const peerData = peers.get(peerId);
+      if (peerData) peerData.screenSender = sender;
+    }
+  }
+
   // Handle remote stream
   pc.ontrack = (e) => {
     const track = e.track;
@@ -414,24 +500,25 @@ async function createPeerConnection(peerId, peerUsername, peerAvatar, isInitiato
 
     const stream = e.streams[0];
     // Create gain node for volume control
-    if (!audioContext) audioContext = new AudioContext();
-    const source = audioContext.createMediaStreamSource(stream);
-    const gainNode = audioContext.createGain();
-    gainNode.gain.value = 1.0;
-    source.connect(gainNode);
-    const dest = audioContext.createMediaStreamDestination();
-    gainNode.connect(dest);
-    audioEl.srcObject = dest.stream;
+    ensureAudioContext().then(() => {
+      const source = audioContext.createMediaStreamSource(stream);
+      const gainNode = audioContext.createGain();
+      gainNode.gain.value = 1.0;
+      source.connect(gainNode);
+      const dest = audioContext.createMediaStreamDestination();
+      gainNode.connect(dest);
+      audioEl.srcObject = dest.stream;
 
-    // Setup VAD analyser
-    const peerAnalyser = audioContext.createAnalyser();
-    peerAnalyser.fftSize = 512;
-    gainNode.connect(peerAnalyser);
-    const peerData = peers.get(peerId);
-    if (peerData) {
-      peerData.analyser = peerAnalyser;
-      peerData.gainNode = gainNode;
-    }
+      // Setup VAD analyser
+      const peerAnalyser = audioContext.createAnalyser();
+      peerAnalyser.fftSize = 512;
+      gainNode.connect(peerAnalyser);
+      const peerData = peers.get(peerId);
+      if (peerData) {
+        peerData.analyser = peerAnalyser;
+        peerData.gainNode = gainNode;
+      }
+    });
   };
 
   // ICE candidates
@@ -481,6 +568,10 @@ async function handleIceCandidate(msg) {
 }
 
 function removePeer(id) {
+  // Close volume popup if it's open for this peer
+  if (activeVolumePopup && activeVolumePopup.dataset.peerId === String(id)) {
+    closeVolumePopup();
+  }
   const peer = peers.get(id);
   if (peer) {
     peer.pc.close();
@@ -494,9 +585,18 @@ function removePeer(id) {
   renderScreenShares();
 }
 
-// ===== Voice Activity Detection =====
-function setupLocalVAD() {
+// ===== AudioContext Helper =====
+async function ensureAudioContext() {
   if (!audioContext) audioContext = new AudioContext();
+  if (audioContext.state === 'suspended') {
+    await audioContext.resume();
+  }
+  return audioContext;
+}
+
+// ===== Voice Activity Detection =====
+async function setupLocalVAD() {
+  await ensureAudioContext();
   const source = audioContext.createMediaStreamSource(localStream);
   localAnalyser = audioContext.createAnalyser();
   localAnalyser.fftSize = 512;
@@ -544,7 +644,12 @@ function setupLocalVAD() {
 }
 
 // ===== Mute =====
-function toggleMute() {
+function toggleMute(skipBroadcast = false) {
+  if (!localStream) {
+    showToast('Микрофон недоступен', true);
+    return;
+  }
+
   if (isMuted && isDeafened) {
     // Unmuting while deafened — undeafen first (which will also unmute via its logic)
     toggleDeafen();
@@ -567,7 +672,7 @@ function toggleMute() {
     if (isMuted) selfEl.classList.remove('speaking');
   }
 
-  broadcastUserState();
+  if (!skipBroadcast) broadcastUserState();
 }
 
 // ===== Deafen =====
@@ -577,7 +682,7 @@ function toggleDeafen() {
   if (isDeafened) {
     // Save mute state, then mute
     wasMutedBeforeDeafen = isMuted;
-    if (!isMuted) toggleMute();
+    if (!isMuted) toggleMute(true);
     // Mute all incoming audio
     for (const [, peer] of peers) {
       peer.audioEl.muted = true;
@@ -588,7 +693,7 @@ function toggleDeafen() {
       peer.audioEl.muted = false;
     }
     // Restore mute state
-    if (!wasMutedBeforeDeafen && isMuted) toggleMute();
+    if (!wasMutedBeforeDeafen && isMuted) toggleMute(true);
   }
 
   deafenBtn.classList.toggle('muted', isDeafened);
@@ -683,11 +788,17 @@ async function toggleScreenShare() {
 function stopScreenShare() {
   if (!screenStream) return;
 
-  // Remove track from all peers
-  for (const [, peer] of peers) {
+  // Remove track from all peers and renegotiate
+  for (const [peerId, peer] of peers) {
     if (peer.screenSender) {
       peer.pc.removeTrack(peer.screenSender);
       peer.screenSender = null;
+      // Renegotiate
+      peer.pc.createOffer().then(offer => {
+        return peer.pc.setLocalDescription(offer);
+      }).then(() => {
+        send({ type: 'offer', to: peerId, sdp: peer.pc.localDescription });
+      }).catch(() => {});
     }
   }
 
@@ -755,6 +866,117 @@ function renderScreenShares() {
   mainArea.insertBefore(area, participantsEl);
 }
 
+// ===== Profile Popup =====
+let activeProfilePopup = null;
+
+function showProfilePopup(anchorEl) {
+  closeVolumePopup();
+  closeProfilePopup();
+
+  const popup = document.createElement('div');
+  popup.className = 'profile-popup';
+  popup.id = 'profile-popup';
+
+  let tempColor = selectedColor;
+  let tempIcon = selectedIcon;
+
+  let colorsHTML = '';
+  for (const color of AVATAR_COLORS) {
+    colorsHTML += `<div class="color-option${color === tempColor ? ' selected' : ''}" data-color="${color}" style="background:${color}"></div>`;
+  }
+
+  let iconsHTML = '';
+  for (const icon of AVATAR_ICONS) {
+    iconsHTML += `<div class="icon-option${icon === tempIcon ? ' selected' : ''}" data-icon="${icon}">${icon}</div>`;
+  }
+
+  popup.innerHTML = `
+    <div class="profile-popup-header">Редактировать профиль</div>
+    <div class="profile-popup-section">
+      <label>Имя</label>
+      <input type="text" id="profile-name-input" value="${escapeHtml(username)}" maxlength="20" autocomplete="off">
+    </div>
+    <div class="profile-popup-section">
+      <label>Цвет</label>
+      <div class="color-options profile-colors">${colorsHTML}</div>
+    </div>
+    <div class="profile-popup-section">
+      <label>Иконка</label>
+      <div class="icon-options profile-icons">${iconsHTML}</div>
+    </div>
+    <button class="btn primary profile-save-btn" id="profile-save-btn">Сохранить</button>
+  `;
+
+  document.body.appendChild(popup);
+
+  // Position near anchor
+  const rect = anchorEl.getBoundingClientRect();
+  popup.style.left = `${Math.max(8, Math.min(rect.left + rect.width / 2 - 120, window.innerWidth - 260))}px`;
+  popup.style.top = `${Math.max(8, Math.min(rect.bottom + 8, window.innerHeight - popup.offsetHeight - 8))}px`;
+
+  // Color clicks
+  popup.querySelectorAll('.profile-colors .color-option').forEach(el => {
+    el.addEventListener('click', () => {
+      tempColor = el.dataset.color;
+      popup.querySelectorAll('.profile-colors .color-option').forEach(e => e.classList.remove('selected'));
+      el.classList.add('selected');
+    });
+  });
+
+  // Icon clicks
+  popup.querySelectorAll('.profile-icons .icon-option').forEach(el => {
+    el.addEventListener('click', () => {
+      tempIcon = el.dataset.icon;
+      popup.querySelectorAll('.profile-icons .icon-option').forEach(e => e.classList.remove('selected'));
+      el.classList.add('selected');
+    });
+  });
+
+  // Save
+  popup.querySelector('#profile-save-btn').addEventListener('click', () => {
+    const newName = popup.querySelector('#profile-name-input').value.trim();
+    if (!newName) {
+      showToast('Имя не может быть пустым', true);
+      return;
+    }
+    username = newName;
+    selectedColor = tempColor;
+    selectedIcon = tempIcon;
+    localStorage.setItem('username', username);
+    localStorage.setItem('avatar-color', selectedColor);
+    localStorage.setItem('avatar-icon', selectedIcon);
+
+    // Update lobby pickers if they exist
+    updateAvatarPreview();
+    updateAccordionMiniAvatar();
+    usernameInput.value = username;
+
+    send({ type: 'update-profile', username, avatar: { color: selectedColor, icon: selectedIcon } });
+    renderParticipants();
+    closeProfilePopup();
+  });
+
+  activeProfilePopup = popup;
+
+  setTimeout(() => {
+    document.addEventListener('click', closeProfilePopupOutside);
+  }, 10);
+}
+
+function closeProfilePopup() {
+  if (activeProfilePopup) {
+    activeProfilePopup.remove();
+    activeProfilePopup = null;
+    document.removeEventListener('click', closeProfilePopupOutside);
+  }
+}
+
+function closeProfilePopupOutside(e) {
+  if (activeProfilePopup && !activeProfilePopup.contains(e.target)) {
+    closeProfilePopup();
+  }
+}
+
 // ===== Volume Control =====
 let activeVolumePopup = null;
 
@@ -766,6 +988,7 @@ function showVolumePopup(peerId, anchorEl) {
   const popup = document.createElement('div');
   popup.className = 'volume-popup';
   popup.id = 'volume-popup';
+  popup.dataset.peerId = String(peerId);
 
   const currentVolume = peer.gainNode ? Math.round(peer.gainNode.gain.value * 100) : 100;
   const isLocallyMuted = peer.locallyMuted || false;
@@ -783,10 +1006,22 @@ function showVolumePopup(peerId, anchorEl) {
 
   document.body.appendChild(popup);
 
-  // Position near anchor
+  // Position near anchor with bounds checking
   const rect = anchorEl.getBoundingClientRect();
-  popup.style.left = `${rect.left + rect.width / 2 - 90}px`;
-  popup.style.top = `${rect.bottom + 8}px`;
+  const popupWidth = 180;
+  const popupHeight = popup.offsetHeight || 120;
+  let left = rect.left + rect.width / 2 - popupWidth / 2;
+  let top = rect.bottom + 8;
+
+  // Bounds
+  left = Math.max(8, Math.min(left, window.innerWidth - popupWidth - 8));
+  if (top + popupHeight > window.innerHeight - 8) {
+    top = rect.top - popupHeight - 8;
+  }
+  top = Math.max(8, top);
+
+  popup.style.left = `${left}px`;
+  popup.style.top = `${top}px`;
 
   const slider = popup.querySelector('#volume-slider');
   const valueEl = popup.querySelector('#volume-value');

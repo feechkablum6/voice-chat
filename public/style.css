@@ -687,6 +687,11 @@ body {
   background: var(--danger-hover);
 }
 
+.control-btn.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .control-btn.leave {
   background: var(--danger);
 }
@@ -759,6 +764,77 @@ body {
 
 .volume-popup-mute-btn.active:hover {
   background: var(--danger-hover);
+}
+
+/* ===== PROFILE POPUP ===== */
+.profile-popup {
+  position: fixed;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 16px;
+  z-index: 80;
+  width: 250px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+}
+
+.profile-popup-header {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--text-bright);
+  margin-bottom: 12px;
+}
+
+.profile-popup-section {
+  margin-bottom: 10px;
+}
+
+.profile-popup-section label {
+  display: block;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  font-weight: 700;
+  margin-bottom: 6px;
+}
+
+.profile-popup-section input {
+  width: 100%;
+  padding: 8px 10px;
+  background: var(--bg-secondary);
+  border: 2px solid transparent;
+  border-radius: var(--radius);
+  color: var(--text-bright);
+  font-size: 0.9rem;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.profile-popup-section input:focus {
+  border-color: var(--accent);
+}
+
+.profile-popup .color-options {
+  gap: 6px;
+}
+
+.profile-popup .color-option {
+  width: 26px;
+  height: 26px;
+}
+
+.profile-popup .icon-option {
+  width: 30px;
+  height: 30px;
+  font-size: 1rem;
+}
+
+.profile-save-btn {
+  width: 100%;
+  margin-top: 8px;
+  padding: 8px;
+  font-size: 0.85rem;
 }
 
 /* ===== MODAL ===== */
