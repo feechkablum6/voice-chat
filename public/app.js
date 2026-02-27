@@ -437,6 +437,8 @@ function setupLocalVAD() {
       const avg = dataArray.reduce((a, b) => a + b, 0) / dataArray.length;
       const selfEl = document.getElementById(`participant-${myId}`);
       if (selfEl) {
+        const level = Math.min(avg / 50, 1);
+        selfEl.style.setProperty('--audio-level', level);
         if (avg > 15) {
           selfEl.classList.add('speaking');
         } else {
@@ -453,6 +455,8 @@ function setupLocalVAD() {
         const avg = peerData.reduce((a, b) => a + b, 0) / peerData.length;
         const el = document.getElementById(`participant-${id}`);
         if (el) {
+          const level = Math.min(avg / 50, 1);
+          el.style.setProperty('--audio-level', level);
           if (avg > 15) {
             el.classList.add('speaking');
           } else {

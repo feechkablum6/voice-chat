@@ -433,7 +433,40 @@ body {
 
 .participant.speaking .participant-avatar {
   border-color: var(--success);
-  box-shadow: 0 0 16px rgba(59, 165, 92, 0.4);
+}
+
+.participant-avatar::before,
+.participant-avatar::after {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  border-radius: 50%;
+  border: 2px solid var(--success);
+  opacity: 0;
+  transform: scale(1);
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+}
+
+.participant.speaking .participant-avatar::before {
+  opacity: calc(var(--audio-level, 0) * 0.3);
+  animation: pulse-ring 1.5s ease-out infinite;
+}
+
+.participant.speaking .participant-avatar::after {
+  opacity: calc(var(--audio-level, 0) * 0.2);
+  animation: pulse-ring 1.5s ease-out infinite 0.4s;
+}
+
+@keyframes pulse-ring {
+  0% {
+    transform: scale(1);
+    opacity: calc(var(--audio-level, 0) * 0.3);
+  }
+  100% {
+    transform: scale(1.15);
+    opacity: 0;
+  }
 }
 
 .participant.muted .participant-avatar {
