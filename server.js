@@ -75,8 +75,8 @@ wss.on('connection', (ws) => {
           ws.send(JSON.stringify({ type: 'error', message: 'Комната не найдена' }));
           return;
         }
-        if (room.size >= 5) {
-          ws.send(JSON.stringify({ type: 'error', message: 'Комната полна (5/5)' }));
+        if (room.size >= 10) {
+          ws.send(JSON.stringify({ type: 'error', message: 'Комната полна (10/10)' }));
           return;
         }
 

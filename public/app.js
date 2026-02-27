@@ -114,7 +114,7 @@ function handleMessage(msg) {
       if (currentRoom) {
         const room = roomsData.find(r => r.name === currentRoom);
         if (room) {
-          roomCountEl.textContent = `${room.count}/5`;
+          roomCountEl.textContent = `${room.count}/10`;
         }
       }
       break;
@@ -191,7 +191,7 @@ function renderRoomList() {
   for (const room of roomsData) {
     const el = document.createElement('div');
     el.className = 'room-item';
-    const isFull = room.count >= 5;
+    const isFull = room.count >= 10;
 
     let avatarsHTML = '';
     if (room.users.length > 0) {
@@ -209,7 +209,7 @@ function renderRoomList() {
       </div>
       <div class="room-item-users">
         ${avatarsHTML}
-        <span class="room-item-count ${isFull ? 'full' : ''}">${room.count}/5</span>
+        <span class="room-item-count ${isFull ? 'full' : ''}">${room.count}/10</span>
       </div>
     `;
     el.addEventListener('click', () => joinRoom(room.name));
@@ -306,7 +306,7 @@ function showRoomScreen() {
   roomScreen.classList.add('active');
   roomNameEl.textContent = currentRoom;
   const room = roomsData.find(r => r.name === currentRoom);
-  roomCountEl.textContent = room ? `${room.count}/5` : '';
+  roomCountEl.textContent = room ? `${room.count}/10` : '';
   renderParticipants();
   renderSidebarRooms();
 }
