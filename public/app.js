@@ -15,6 +15,8 @@ let reconnectDelay = 1000;
 let roomsData = [];
 let isChatOpen = false;
 let unreadCount = 0;
+let screenStream = null;
+const activeScreenShares = new Map(); // peerId -> { stream, videoEl, username }
 
 const AVATAR_COLORS = ['#5865f2','#ed4245','#3ba55c','#faa61a','#9b59b6','#e67e22','#e91e63','#1abc9c'];
 const AVATAR_ICONS = ['🐱','🤖','🔥','👻','🎮','🎵','💀','🦊','🌙','⚡','🎯','🍕'];
@@ -53,6 +55,8 @@ const chatInput = document.getElementById('chat-input');
 const chatBtn = document.getElementById('chat-btn');
 const chatCloseBtn = document.getElementById('chat-close-btn');
 const chatUnread = document.getElementById('chat-unread');
+const screenBtn = document.getElementById('screen-btn');
+const mainArea = document.querySelector('.main-area');
 
 const ICE_SERVERS = [{ urls: 'stun:stun.l.google.com:19302' }];
 
@@ -158,6 +162,15 @@ function handleMessage(msg) {
 
     case 'chat-message':
       addChatMessage(msg);
+      break;
+
+    case 'screen-share-start':
+      // Track will arrive via WebRTC ontrack
+      break;
+
+    case 'screen-share-stop':
+      activeScreenShares.delete(msg.id);
+      renderScreenShares();
       break;
 
     case 'error':
@@ -361,6 +374,10 @@ function leaveRoom() {
   unreadCount = 0;
   chatUnread.style.display = 'none';
 
+  stopScreenShare();
+  activeScreenShares.clear();
+  renderScreenShares();
+
   showLobbyScreen();
 }
 
@@ -382,6 +399,22 @@ async function createPeerConnection(peerId, peerUsername, peerAvatar, isInitiato
 
   // Handle remote stream
   pc.ontrack = (e) => {
+    const track = e.track;
+    if (track.kind === 'video') {
+      // Screen share incoming
+      const videoEl = document.createElement('video');
+      videoEl.autoplay = true;
+      videoEl.playsInline = true;
+      videoEl.srcObject = new MediaStream([track]);
+      activeScreenShares.set(peerId, { stream: e.streams[0], videoEl, username: peerUsername });
+      track.onended = () => {
+        activeScreenShares.delete(peerId);
+        renderScreenShares();
+      };
+      renderScreenShares();
+      return;
+    }
+
     const stream = e.streams[0];
     // Create gain node for volume control
     if (!audioContext) audioContext = new AudioContext();
@@ -460,6 +493,8 @@ function removePeer(id) {
     peer.audioEl.remove();
     peers.delete(id);
   }
+  activeScreenShares.delete(id);
+  renderScreenShares();
 }
 
 // ===== Voice Activity Detection =====
@@ -603,6 +638,85 @@ function addChatMessage(msg) {
   }
 }
 
+// ===== Screen Share =====
+async function toggleScreenShare() {
+  if (screenStream) {
+    stopScreenShare();
+    return;
+  }
+
+  try {
+    screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
+  } catch (err) {
+    return; // User cancelled
+  }
+
+  screenStream.getVideoTracks()[0].onended = () => stopScreenShare();
+
+  // Add video track to all peer connections
+  for (const [peerId, peer] of peers) {
+    const sender = peer.pc.addTrack(screenStream.getVideoTracks()[0], screenStream);
+    peer.screenSender = sender;
+    // Renegotiate
+    const offer = await peer.pc.createOffer();
+    await peer.pc.setLocalDescription(offer);
+    send({ type: 'offer', to: peerId, sdp: peer.pc.localDescription });
+  }
+
+  send({ type: 'screen-share-start' });
+  screenBtn.classList.add('sharing');
+  renderScreenShares();
+}
+
+function stopScreenShare() {
+  if (!screenStream) return;
+
+  // Remove track from all peers
+  for (const [, peer] of peers) {
+    if (peer.screenSender) {
+      peer.pc.removeTrack(peer.screenSender);
+      peer.screenSender = null;
+    }
+  }
+
+  screenStream.getTracks().forEach(t => t.stop());
+  screenStream = null;
+  send({ type: 'screen-share-stop' });
+  screenBtn.classList.remove('sharing');
+  renderScreenShares();
+}
+
+function renderScreenShares() {
+  // Remove existing screenshare area
+  const existing = document.querySelector('.screenshare-area');
+  if (existing) existing.remove();
+
+  const shares = Array.from(activeScreenShares.entries());
+
+  if (shares.length === 0) {
+    mainArea.classList.remove('has-screenshare');
+    return;
+  }
+
+  mainArea.classList.add('has-screenshare');
+  const area = document.createElement('div');
+  area.className = `screenshare-area count-${Math.min(shares.length, 4)}`;
+
+  for (const [, share] of shares) {
+    const item = document.createElement('div');
+    item.className = 'screenshare-item';
+    item.appendChild(share.videoEl);
+    item.innerHTML += `<div class="screenshare-label">${escapeHtml(share.username)}</div>`;
+    item.addEventListener('click', () => {
+      item.classList.toggle('focused');
+    });
+    area.appendChild(item);
+  }
+
+  // Insert before participants
+  mainArea.insertBefore(area, participantsEl);
+}
+
 // ===== Volume Control =====
 let activeVolumePopup = null;
 
@@ -734,6 +848,7 @@ function updateAvatarPreview() {
 // ===== Event Listeners =====
 muteBtn.addEventListener('click', toggleMute);
 deafenBtn.addEventListener('click', toggleDeafen);
+screenBtn.addEventListener('click', toggleScreenShare);
 chatBtn.addEventListener('click', toggleChat);
 chatCloseBtn.addEventListener('click', toggleChat);
 chatInput.addEventListener('keydown', (e) => {
