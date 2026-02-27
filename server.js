@@ -94,12 +94,12 @@ wss.on('connection', (ws) => {
 
         username = msg.username;
         currentRoom = msg.room;
-        room.set(id, { ws, id, username, avatar: msg.avatar || { color: '#5865f2', icon: '🐱' } });
+        room.set(id, { ws, id, username, avatar: msg.avatar || { color: '#5865f2', icon: '🐱' }, muted: false, deafened: false });
 
         const existingPeers = [];
         for (const [memberId, member] of room) {
           if (memberId !== id) {
-            existingPeers.push({ id: memberId, username: member.username, avatar: member.avatar });
+            existingPeers.push({ id: memberId, username: member.username, avatar: member.avatar, muted: member.muted, deafened: member.deafened });
           }
         }
         ws.send(JSON.stringify({ type: 'joined', room: currentRoom, peers: existingPeers }));
@@ -141,6 +141,24 @@ wss.on('connection', (ws) => {
         const target = room.get(msg.to);
         if (target) {
           target.ws.send(JSON.stringify({ ...msg, from: id }));
+        }
+        break;
+      }
+
+      case 'user-state': {
+        if (!currentRoom) return;
+        const room = rooms.get(currentRoom);
+        if (!room) return;
+        const member = room.get(id);
+        if (member) {
+          member.muted = !!msg.muted;
+          member.deafened = !!msg.deafened;
+        }
+        // Broadcast to all others in room
+        for (const [memberId, m] of room) {
+          if (memberId !== id) {
+            m.ws.send(JSON.stringify({ type: 'user-state', id, muted: !!msg.muted, deafened: !!msg.deafened }));
+          }
         }
         break;
       }
