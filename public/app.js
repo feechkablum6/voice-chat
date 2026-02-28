@@ -126,6 +126,10 @@ const ctxSplit = document.getElementById('ctx-split');
 const presenterBar = document.getElementById('presenter-bar');
 const presenterTabs = document.getElementById('presenter-tabs');
 const presenterMinimizeBtn = document.getElementById('presenter-minimize-btn');
+const selfPip = document.getElementById('self-pip');
+const selfPipVideo = document.getElementById('self-pip-video');
+const selfPipStop = document.getElementById('self-pip-stop');
+const selfPipDragHandle = document.getElementById('self-pip-drag-handle');
 
 // Layout state
 let currentLayout = 'grid'; // 'grid' | 'focus'
@@ -1024,6 +1028,17 @@ function addChatMessage(msg) {
 }
 
 // ===== Screen Share =====
+function showSelfPip() {
+  if (!screenStream) return;
+  selfPipVideo.srcObject = screenStream;
+  selfPip.style.display = '';
+}
+
+function hideSelfPip() {
+  selfPip.style.display = 'none';
+  selfPipVideo.srcObject = null;
+}
+
 async function toggleScreenShare() {
   if (screenStream) {
     stopScreenShare();
@@ -1050,6 +1065,7 @@ async function toggleScreenShare() {
 
   send({ type: 'screen-share-start' });
   screenBtn.classList.add('sharing');
+  showSelfPip();
 
   // Add self preview
   const selfVideoEl = document.createElement('video');
@@ -1084,6 +1100,7 @@ function stopScreenShare() {
   screenStream = null;
   send({ type: 'screen-share-stop' });
   screenBtn.classList.remove('sharing');
+  hideSelfPip();
   renderScreenShares();
 }
 
@@ -1276,13 +1293,6 @@ function renderFocusContent(shares) {
       const card = createMiniCard(id, peer.username, false, peer.avatar, { muted: peer.muted, deafened: peer.deafened });
       sidebarContainer.appendChild(card);
     }
-  }
-
-  // Self screen share thumbnail (if self is sharing but not focused)
-  if (activeScreenShares.has(myId) && focusedShareId !== myId) {
-    const selfShare = activeScreenShares.get(myId);
-    const thumbCard = createScreenThumbCard(myId, { username: username + ' (ты)', avatar: { color: selectedColor, icon: selectedIcon } }, selfShare);
-    sidebarContainer.appendChild(thumbCard);
   }
 }
 
@@ -2020,6 +2030,9 @@ deafenBtn.addEventListener('click', toggleDeafen);
 screenBtn.addEventListener('click', toggleScreenShare);
 presenterMinimizeBtn.addEventListener('click', () => {
   minimizeToGrid();
+});
+selfPipStop.addEventListener('click', () => {
+  stopScreenShare();
 });
 chatBtn.addEventListener('click', toggleChat);
 chatCloseBtn.addEventListener('click', toggleChat);
