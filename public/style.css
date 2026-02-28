@@ -1199,7 +1199,7 @@ body {
 }
 
 .lf-sidebar {
-  width: 260px;
+  width: 220px;
   display: flex;
   flex-direction: column;
   gap: 10px;
