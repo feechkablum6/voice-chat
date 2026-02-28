@@ -39,19 +39,21 @@
           </div>
         </div>
         <div class="accordion-body">
-          <div class="avatar-picker">
-            <div class="avatar-preview">
-              <div id="avatar-preview" class="avatar-preview-circle">🐱</div>
+          <div class="accordion-content-inner">
+            <div class="avatar-picker">
+              <div class="avatar-preview">
+                <div id="avatar-preview" class="avatar-preview-circle">🐱</div>
+              </div>
+              <div class="picker-section">
+                <label>Цвет</label>
+                <div id="color-picker" class="color-options"></div>
+              </div>
+              <div class="picker-section">
+                <label>Иконка</label>
+                <div id="icon-picker" class="icon-options"></div>
+              </div>
+              <button id="avatar-continue-btn" class="continue-btn" type="button">Продолжить</button>
             </div>
-            <div class="picker-section">
-              <label>Цвет</label>
-              <div id="color-picker" class="color-options"></div>
-            </div>
-            <div class="picker-section">
-              <label>Иконка</label>
-              <div id="icon-picker" class="icon-options"></div>
-            </div>
-            <button id="avatar-continue-btn" class="continue-btn" type="button">Продолжить</button>
           </div>
         </div>
       </div>
@@ -68,13 +70,15 @@
           </div>
         </div>
         <div class="accordion-body">
-          <div class="join-form">
-            <label for="username-input" class="sr-only">Имя пользователя</label>
-            <div class="name-input-wrap">
-              <input type="text" id="username-input" name="username" placeholder="Твоё имя…" maxlength="20" autocomplete="off">
-              <span class="char-count" id="char-count">0/20</span>
+          <div class="accordion-content-inner">
+            <div class="join-form">
+              <label for="username-input" class="sr-only">Имя пользователя</label>
+              <div class="name-input-wrap">
+                <input type="text" id="username-input" name="username" placeholder="Твоё имя…" maxlength="20" autocomplete="off">
+                <span class="char-count" id="char-count">0/20</span>
+              </div>
+              <button id="username-continue-btn" class="continue-btn disabled" type="button">Продолжить</button>
             </div>
-            <button id="username-continue-btn" class="continue-btn disabled" type="button">Продолжить</button>
           </div>
         </div>
       </div>
@@ -88,12 +92,14 @@
           </div>
         </div>
         <div class="accordion-body">
-          <div class="rooms-section">
-            <div class="rooms-header">
-              <h2>Комнаты</h2>
-              <button id="create-room-btn" class="btn-icon" title="Создать комнату" aria-label="Создать комнату">+</button>
+          <div class="accordion-content-inner">
+            <div class="rooms-section">
+              <div class="rooms-header">
+                <h2>Комнаты</h2>
+                <button id="create-room-btn" class="btn-icon" title="Создать комнату" aria-label="Создать комнату">+</button>
+              </div>
+              <div id="room-list" class="room-list"></div>
             </div>
-            <div id="room-list" class="room-list"></div>
           </div>
         </div>
       </div>
