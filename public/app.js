@@ -24,6 +24,66 @@ const AVATAR_ICONS = ['🐱','🐶','🐻','🦊','🐧','🦅','🦄','🐉','�
 let selectedColor = localStorage.getItem('avatar-color') || AVATAR_COLORS[0];
 let selectedIcon = localStorage.getItem('avatar-icon') || AVATAR_ICONS[0];
 
+// ===== FLIP Animation Utility =====
+function animateFLIP(elements, domChangeCallback) {
+  // 1. FIRST: measure initial positions
+  const firstRects = new Map();
+  elements.forEach(el => {
+    if(el && document.body.contains(el)) {
+       firstRects.set(el, el.getBoundingClientRect());
+    }
+  });
+
+  // 2. Perform actual DOM updates (hide grid, show focus, move video tags)
+  domChangeCallback();
+
+  // Force reflow
+  requestAnimationFrame(() => {
+    // 3. LAST: measure new positions
+    const lastRects = new Map();
+    elements.forEach(el => {
+       if(el && document.body.contains(el)) {
+          lastRects.set(el, el.getBoundingClientRect());
+       }
+    });
+
+    // 4. INVERT
+    elements.forEach(el => {
+      if(!firstRects.has(el) || !lastRects.has(el)) return;
+      const first = firstRects.get(el);
+      const last = lastRects.get(el);
+
+      const dx = first.left - last.left;
+      const dy = first.top - last.top;
+      const sw = first.width / last.width;
+      const sh = first.height / last.height;
+
+      // Disable transitions immediately to snap to first position
+      el.style.transition = 'none';
+      el.style.transformOrigin = 'top left';
+      el.classList.add('flip-animating');
+      el.style.transform = `translate(${dx}px, ${dy}px) scale(${sw}, ${sh})`;
+    });
+
+    // 5. PLAY
+    requestAnimationFrame(() => {
+      elements.forEach(el => {
+        if(!firstRects.has(el) || !lastRects.has(el)) return;
+        el.style.transition = 'transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1)';
+        el.style.transform = 'translate(0, 0) scale(1, 1)';
+
+        // Cleanup after transition
+        setTimeout(() => {
+          el.style.transition = '';
+          el.style.transform = '';
+          el.style.transformOrigin = '';
+          el.classList.remove('flip-animating');
+        }, 500);
+      });
+    });
+  });
+}
+
 // ===== DOM =====
 const lobbyScreen = document.getElementById('lobby');
 const roomScreen = document.getElementById('room');
@@ -1149,6 +1209,14 @@ function initAvatarPicker() {
     el.addEventListener('keydown', (e) => {
       if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); selectColor(); }
     });
+    // Hover preview
+    el.addEventListener('mouseenter', () => {
+      avatarPreviewEl.style.background = hexToRgba(color, 0.2);
+      avatarPreviewEl.style.borderColor = hexToRgba(color, 0.4);
+    });
+    el.addEventListener('mouseleave', () => {
+      updateAvatarPreview();
+    });
     colorPickerEl.appendChild(el);
   }
 
@@ -1178,6 +1246,13 @@ function initAvatarPicker() {
     el.addEventListener('click', selectIcon);
     el.addEventListener('keydown', (e) => {
       if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); selectIcon(); }
+    });
+    // Hover preview
+    el.addEventListener('mouseenter', () => {
+      avatarPreviewEl.textContent = icon;
+    });
+    el.addEventListener('mouseleave', () => {
+      updateAvatarPreview();
     });
     iconPickerEl.appendChild(el);
   }
@@ -1228,16 +1303,59 @@ function initAccordion() {
   usernameContinueBtn.addEventListener('click', () => {
     if (usernameInput.value.trim().length >= 1) {
       completeStep(2);
+    } else {
+      showToast('введи ник падла', true);
+      usernameInput.focus();
     }
   });
 
-  // Headers click to go back
-  document.getElementById('step-avatar-header').addEventListener('click', () => goToStep(1));
-  document.getElementById('step-username-header').addEventListener('click', () => {
-    if (!document.getElementById('step-username').classList.contains('locked')) goToStep(2);
+  // Headers click navigation with validation
+  document.getElementById('step-avatar-header').addEventListener('click', () => {
+    const stepEl = document.getElementById('step-avatar');
+    if (stepEl.classList.contains('active')) return; // already active, no hover/action
+    goToStep(1);
   });
+
+  document.getElementById('step-username-header').addEventListener('click', () => {
+    const stepEl = document.getElementById('step-username');
+    if (stepEl.classList.contains('active')) return;
+    if (stepEl.classList.contains('locked')) {
+      // Step 1 not completed — just complete it and go forward
+      completeStep(1);
+      return;
+    }
+    goToStep(2);
+  });
+
   document.getElementById('step-rooms-header').addEventListener('click', () => {
-    if (!document.getElementById('step-rooms').classList.contains('locked')) goToStep(3);
+    const stepEl = document.getElementById('step-rooms');
+    if (stepEl.classList.contains('active')) return;
+    if (stepEl.classList.contains('locked')) {
+      // Validate: if step 2 is active/unlocked but username is empty
+      const step2 = document.getElementById('step-username');
+      if (step2.classList.contains('locked')) {
+        // Step 1 not completed yet
+        completeStep(1);
+        return;
+      }
+      if (usernameInput.value.trim().length < 1) {
+        showToast('введи ник падла', true);
+        usernameInput.focus();
+        return;
+      }
+      // Username filled, complete step 2 to unlock step 3
+      completeStep(2);
+      return;
+    }
+    // Not locked — navigate to it, but validate username first
+    if (usernameInput.value.trim().length < 1) {
+      showToast('введи ник падла', true);
+      usernameInput.focus();
+      lockStep(3);
+      goToStep(2);
+      return;
+    }
+    goToStep(3);
   });
 
   // Char counter
