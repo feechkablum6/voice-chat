@@ -1432,28 +1432,17 @@ function renderFocusContent(shares) {
     }
   }
 
-  // Sidebar: all participants as mini-cards + non-focused screen shares as thumbnails
+  // Sidebar: only participant mini-cards
   sidebarContainer.innerHTML = '';
 
   // Self mini-card
   const selfCard = createMiniCard(myId, username, true, { color: selectedColor, icon: selectedIcon }, null);
   sidebarContainer.appendChild(selfCard);
 
-  // Peer mini-cards
+  // Peer mini-cards (all peers, including those sharing — they appear as tabs instead)
   for (const [id, peer] of peers) {
-    const hasScreen = activeScreenShares.has(id);
-    const isInMain = id === focusedShareId;
-
-    if (hasScreen && !isInMain) {
-      // Show as screen thumbnail card
-      const share = activeScreenShares.get(id);
-      const thumbCard = createScreenThumbCard(id, peer, share);
-      sidebarContainer.appendChild(thumbCard);
-    } else if (!isInMain) {
-      // Show as regular mini-card
-      const card = createMiniCard(id, peer.username, false, peer.avatar, { muted: peer.muted, deafened: peer.deafened });
-      sidebarContainer.appendChild(card);
-    }
+    const card = createMiniCard(id, peer.username, false, peer.avatar, { muted: peer.muted, deafened: peer.deafened });
+    sidebarContainer.appendChild(card);
   }
 }
 
