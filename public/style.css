@@ -877,6 +877,37 @@ body {
   flex-direction: column;
   align-items: center;
   gap: 10px;
+  position: relative;
+}
+
+/* Screen sharing indicator on grid cards */
+.participant.is-sharing {
+  border: 2px solid rgba(212, 145, 92, 0.5);
+  border-radius: var(--radius-sm);
+  padding: 8px;
+  animation: sharing-pulse 2s ease-in-out infinite;
+  cursor: pointer;
+}
+
+.participant.is-sharing::after {
+  content: '🖥';
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  font-size: 0.9rem;
+  background: rgba(20, 18, 16, 0.8);
+  backdrop-filter: blur(4px);
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+}
+
+@keyframes sharing-pulse {
+  0%, 100% { border-color: rgba(212, 145, 92, 0.3); }
+  50%      { border-color: rgba(212, 145, 92, 0.7); }
 }
 
 .participant-avatar {
