@@ -131,6 +131,7 @@ const presenterMinimizeBtn = document.getElementById('presenter-minimize-btn');
 let currentLayout = 'grid'; // 'grid' | 'focus'
 let focusedShareId = null; // peerId whose screen is in main area
 let contextMenuTargetId = null; // peerId for context menu actions
+let focusMinimized = false; // true = user manually minimized focus mode, shares still active
 
 const ICE_SERVERS = [{ urls: 'stun:stun.l.google.com:19302' }];
 
@@ -561,6 +562,8 @@ async function createPeerConnection(peerId, peerUsername, peerAvatar, isInitiato
       videoEl.playsInline = true;
       videoEl.srcObject = new MediaStream([track]);
       activeScreenShares.set(peerId, { stream: e.streams[0], videoEl, username: peerUsername });
+      // Force re-enter focus for new share
+      focusMinimized = false;
       track.onended = () => {
         activeScreenShares.delete(peerId);
         renderScreenShares();
@@ -1092,6 +1095,7 @@ function renderScreenShares() {
 function resetLayoutState() {
   currentLayout = 'grid';
   focusedShareId = null;
+  focusMinimized = false;
   contextMenuTargetId = null;
   hideContextMenu();
   layoutGrid.classList.add('active');
@@ -1105,23 +1109,29 @@ function updateRoomUI() {
   const shares = Array.from(activeScreenShares.entries());
   const hasShares = shares.length > 0;
 
-  if (hasShares && currentLayout === 'grid') {
-    // Transition from grid to focus
+  if (hasShares && currentLayout === 'grid' && !focusMinimized) {
+    // Transition from grid to focus (auto-enter)
     const allCards = Array.from(participantsEl.children);
     animateFLIP(allCards, () => {
       switchToFocusLayout(shares);
     });
   } else if (!hasShares && currentLayout === 'focus') {
-    // Transition from focus to grid
+    // No more shares — return to grid
     const allCards = [...mainScreensContainer.children, ...sidebarContainer.children];
     animateFLIP(allCards, () => {
       switchToGridLayout();
     });
-  } else if (hasShares) {
+  } else if (!hasShares && focusMinimized) {
+    // Shares ended while minimized
+    focusMinimized = false;
+    renderGridContent();
+  } else if (hasShares && currentLayout === 'focus') {
     // Already in focus, just re-render
     renderFocusContent(shares);
+  } else if (hasShares && focusMinimized) {
+    // Minimized but shares active — re-render grid with indicators
+    renderGridContent();
   } else {
-    // Already in grid, just re-render
     renderGridContent();
   }
 }
@@ -1129,6 +1139,7 @@ function updateRoomUI() {
 function switchToGridLayout() {
   currentLayout = 'grid';
   focusedShareId = null;
+  focusMinimized = false;
   layoutFocus.classList.remove('active');
   layoutGrid.classList.add('active');
   mainScreensContainer.innerHTML = '';
@@ -1148,16 +1159,47 @@ function switchToFocusLayout(shares) {
   renderFocusContent(shares);
 }
 
+function minimizeToGrid() {
+  focusMinimized = true;
+  const allCards = [...mainScreensContainer.children, ...sidebarContainer.children];
+  animateFLIP(allCards, () => {
+    currentLayout = 'grid';
+    layoutFocus.classList.remove('active');
+    layoutGrid.classList.add('active');
+    mainScreensContainer.innerHTML = '';
+    sidebarContainer.innerHTML = '';
+    presenterTabs.innerHTML = '';
+    renderGridContent();
+  });
+}
+
+function restoreToFocus() {
+  focusMinimized = false;
+  const shares = Array.from(activeScreenShares.entries());
+  if (shares.length === 0) return;
+  const allCards = Array.from(participantsEl.children);
+  animateFLIP(allCards, () => {
+    switchToFocusLayout(shares);
+  });
+}
+
 function renderGridContent() {
   participantsEl.innerHTML = '';
 
   // Add self
   const selfEl = createParticipantEl(myId, username, true, { color: selectedColor, icon: selectedIcon }, null);
+  if (activeScreenShares.has(myId)) {
+    selfEl.classList.add('is-sharing');
+  }
   participantsEl.appendChild(selfEl);
 
   // Add peers
   for (const [id, peer] of peers) {
     const el = createParticipantEl(id, peer.username, false, peer.avatar, { muted: peer.muted, deafened: peer.deafened });
+    if (activeScreenShares.has(id)) {
+      el.classList.add('is-sharing');
+      el.addEventListener('click', () => restoreToFocus());
+    }
     participantsEl.appendChild(el);
   }
 }
@@ -1976,6 +2018,9 @@ function lockStep(step) {
 muteBtn.addEventListener('click', () => toggleMute());
 deafenBtn.addEventListener('click', toggleDeafen);
 screenBtn.addEventListener('click', toggleScreenShare);
+presenterMinimizeBtn.addEventListener('click', () => {
+  minimizeToGrid();
+});
 chatBtn.addEventListener('click', toggleChat);
 chatCloseBtn.addEventListener('click', toggleChat);
 chatInput.addEventListener('keydown', (e) => {
