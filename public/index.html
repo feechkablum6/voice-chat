@@ -197,6 +197,15 @@
         </div>
       </div>
 
+      <!-- Self Screen Share PiP Preview -->
+      <div id="self-pip" class="self-pip" style="display:none">
+        <div class="self-pip-label">Ваш экран</div>
+        <div class="self-pip-drag-handle" id="self-pip-drag-handle">
+          <video id="self-pip-video" autoplay playsinline muted></video>
+        </div>
+        <button class="self-pip-stop" id="self-pip-stop" title="Остановить демонстрацию">Остановить</button>
+      </div>
+
       <!-- Keep this hidden so app.js doesn't crash searching for it -->
       <div id="sidebar-room-list" style="display:none"></div>
     </div>

@@ -1675,6 +1675,83 @@ body {
   font-size: 0.85rem;
 }
 
+/* ===== SELF PIP PREVIEW ===== */
+.self-pip {
+  position: fixed;
+  bottom: 90px;
+  right: 20px;
+  width: 200px;
+  height: 130px;
+  border-radius: 12px;
+  border: 2px solid var(--accent);
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
+  overflow: hidden;
+  z-index: 90;
+  background: #000;
+  animation: pip-enter 300ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  cursor: grab;
+  user-select: none;
+}
+
+.self-pip.dragging {
+  cursor: grabbing;
+  transition: none !important;
+}
+
+@keyframes pip-enter {
+  from { transform: scale(0.8); opacity: 0; }
+  to   { transform: scale(1);   opacity: 1; }
+}
+
+.self-pip-label {
+  position: absolute;
+  top: -22px;
+  left: 0;
+  font-family: 'Bitter', serif;
+  font-size: 11px;
+  color: var(--accent);
+  font-weight: 500;
+  pointer-events: none;
+}
+
+.self-pip-drag-handle {
+  width: 100%;
+  height: 100%;
+}
+
+.self-pip video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  pointer-events: none;
+}
+
+.self-pip-stop {
+  position: absolute;
+  bottom: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 4px 16px;
+  border-radius: 50px;
+  border: none;
+  background: #e05555;
+  color: white;
+  font-family: 'Bitter', serif;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.self-pip:hover .self-pip-stop {
+  opacity: 1;
+}
+
+.self-pip-stop:hover {
+  background: #c0392b;
+}
+
 /* ===== CHAT PANEL (Floating Bubble) ===== */
 .chat-panel {
   position: fixed;
