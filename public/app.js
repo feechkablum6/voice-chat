@@ -999,6 +999,167 @@ document.addEventListener('pointerdown', (e) => {
   });
 })();
 
+// ===== Self PiP Drag & Collision Snap =====
+(function initSelfPipDrag() {
+  let isDragging = false;
+  let startX, startY, startRight, startBottom;
+  let velX = 0, velY = 0;
+  let prevX = 0, prevY = 0;
+  let prevTime = 0;
+  let inertiaRaf = null;
+
+  function getFloatingRects() {
+    const rects = [];
+    if (chatPanel.style.display !== 'none' && chatPanel.offsetParent !== null) {
+      const cr = chatPanel.getBoundingClientRect();
+      rects.push({ left: cr.left, top: cr.top, right: cr.right, bottom: cr.bottom, width: cr.width, height: cr.height });
+    }
+    return rects;
+  }
+
+  function snapPosition(r, b) {
+    const SNAP_DIST = 16;
+    const pipW = selfPip.offsetWidth;
+    const pipH = selfPip.offsetHeight + 22;
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+
+    const pipLeft = vw - r - pipW;
+    const pipTop  = vh - b - pipH;
+    const pipRight = pipLeft + pipW;
+    const pipBottom = pipTop + pipH;
+
+    const others = getFloatingRects();
+    for (const other of others) {
+      const vOverlap = pipBottom > other.top && pipTop < other.bottom;
+      const hOverlap = pipRight > other.left && pipLeft < other.right;
+
+      if (vOverlap) {
+        const distRL = Math.abs(pipRight - other.left);
+        if (distRL < SNAP_DIST) {
+          r = vw - other.left;
+        }
+        const distLR = Math.abs(pipLeft - other.right);
+        if (distLR < SNAP_DIST) {
+          r = vw - other.right - pipW;
+        }
+      }
+
+      if (hOverlap) {
+        const distBT = Math.abs(pipBottom - other.top);
+        if (distBT < SNAP_DIST) {
+          b = vh - other.top;
+        }
+        const distTB = Math.abs(pipTop - other.bottom);
+        if (distTB < SNAP_DIST) {
+          b = vh - other.bottom - pipH;
+        }
+      }
+    }
+
+    return { right: r, bottom: b };
+  }
+
+  function clampPosition(r, b) {
+    const maxR = window.innerWidth - selfPip.offsetWidth;
+    const maxB = window.innerHeight - (selfPip.offsetHeight + 22);
+    return {
+      right: Math.max(0, Math.min(r, maxR)),
+      bottom: Math.max(0, Math.min(b, maxB))
+    };
+  }
+
+  function stopInertia() {
+    if (inertiaRaf) {
+      cancelAnimationFrame(inertiaRaf);
+      inertiaRaf = null;
+    }
+  }
+
+  function runInertia() {
+    const friction = 0.93;
+    const minVel = 0.4;
+    const bounceDampen = 0.25;
+
+    function step() {
+      velX *= friction;
+      velY *= friction;
+      if (Math.abs(velX) < minVel && Math.abs(velY) < minVel) { inertiaRaf = null; return; }
+
+      const curRight = parseFloat(selfPip.style.right) || 20;
+      const curBottom = parseFloat(selfPip.style.bottom) || 90;
+      const maxR = window.innerWidth - selfPip.offsetWidth;
+      const maxB = window.innerHeight - (selfPip.offsetHeight + 22);
+
+      let nextRight = curRight - velX;
+      let nextBottom = curBottom - velY;
+
+      if (nextRight < 0) { nextRight = -nextRight * bounceDampen; velX = Math.abs(velX) * bounceDampen; }
+      else if (nextRight > maxR) { nextRight = maxR - (nextRight - maxR) * bounceDampen; velX = -Math.abs(velX) * bounceDampen; }
+      if (nextBottom < 0) { nextBottom = -nextBottom * bounceDampen; velY = Math.abs(velY) * bounceDampen; }
+      else if (nextBottom > maxB) { nextBottom = maxB - (nextBottom - maxB) * bounceDampen; velY = -Math.abs(velY) * bounceDampen; }
+
+      nextRight = Math.max(0, Math.min(nextRight, maxR));
+      nextBottom = Math.max(0, Math.min(nextBottom, maxB));
+
+      const snapped = snapPosition(nextRight, nextBottom);
+      selfPip.style.right = snapped.right + 'px';
+      selfPip.style.bottom = snapped.bottom + 'px';
+
+      inertiaRaf = requestAnimationFrame(step);
+    }
+    inertiaRaf = requestAnimationFrame(step);
+  }
+
+  selfPipDragHandle.addEventListener('pointerdown', (e) => {
+    if (e.target.closest('.self-pip-stop')) return;
+    e.preventDefault();
+    stopInertia();
+    isDragging = true;
+    selfPip.classList.add('dragging');
+    const style = getComputedStyle(selfPip);
+    startX = e.clientX;
+    startY = e.clientY;
+    startRight = parseFloat(style.right) || 20;
+    startBottom = parseFloat(style.bottom) || 90;
+    prevX = e.clientX;
+    prevY = e.clientY;
+    prevTime = performance.now();
+    velX = 0;
+    velY = 0;
+    selfPipDragHandle.setPointerCapture(e.pointerId);
+  });
+
+  selfPipDragHandle.addEventListener('pointermove', (e) => {
+    if (!isDragging) return;
+    const now = performance.now();
+    const dt = Math.max(1, now - prevTime);
+    const instantVX = (e.clientX - prevX) / dt * 16;
+    const instantVY = (e.clientY - prevY) / dt * 16;
+    velX = velX * 0.4 + instantVX * 0.6;
+    velY = velY * 0.4 + instantVY * 0.6;
+    prevX = e.clientX;
+    prevY = e.clientY;
+    prevTime = now;
+
+    const dx = e.clientX - startX;
+    const dy = e.clientY - startY;
+    const pos = clampPosition(startRight - dx, startBottom - dy);
+    const snapped = snapPosition(pos.right, pos.bottom);
+    selfPip.style.right = snapped.right + 'px';
+    selfPip.style.bottom = snapped.bottom + 'px';
+  });
+
+  selfPipDragHandle.addEventListener('pointerup', () => {
+    if (!isDragging) return;
+    isDragging = false;
+    selfPip.classList.remove('dragging');
+    if (Math.hypot(velX, velY) > 1.5) {
+      runInertia();
+    }
+  });
+})();
+
 function sendChatMessage() {
   const text = chatInput.value.trim();
   if (!text) return;
