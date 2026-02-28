@@ -1162,6 +1162,35 @@ function renderGridContent() {
   }
 }
 
+function renderPresenterTabs(shares) {
+  presenterTabs.innerHTML = '';
+  for (const [peerId, share] of shares) {
+    const tab = document.createElement('button');
+    tab.className = 'presenter-tab' + (peerId === focusedShareId ? ' active' : '');
+    tab.dataset.peerId = String(peerId);
+
+    const isSelf = peerId === myId;
+    const peer = peers.get(peerId);
+    const avatarColor = isSelf ? selectedColor : (peer?.avatar?.color || '#5865f2');
+    const avatarIcon = isSelf ? selectedIcon : (peer?.avatar?.icon || share.username[0].toUpperCase());
+    const displayName = isSelf ? 'Ваш экран' : share.username;
+
+    tab.innerHTML = `
+      <svg class="tab-screen-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M20 18c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2H4c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2H0v2h24v-2h-4zM4 6h16v10H4V6z"/></svg>
+      <span class="tab-avatar" style="background: ${avatarColor}">${avatarIcon}</span>
+      <span>${escapeHtml(displayName)}</span>
+    `;
+
+    tab.addEventListener('click', () => {
+      if (focusedShareId !== peerId) {
+        swapFocusedShare(peerId);
+      }
+    });
+
+    presenterTabs.appendChild(tab);
+  }
+}
+
 function renderFocusContent(shares) {
   if (!shares) shares = Array.from(activeScreenShares.entries());
 
@@ -1169,6 +1198,9 @@ function renderFocusContent(shares) {
   if (!focusedShareId || !activeScreenShares.has(focusedShareId)) {
     focusedShareId = shares.length > 0 ? shares[0][0] : null;
   }
+
+  // Render presenter tabs
+  renderPresenterTabs(shares);
 
   // Main area: focused screen share(s)
   mainScreensContainer.innerHTML = '';
