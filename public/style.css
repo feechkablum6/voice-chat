@@ -201,13 +201,17 @@ body {
 
 .accordion-step.locked {
   opacity: 0.35;
-  pointer-events: none;
+}
+
+.accordion-step.locked .accordion-header {
+  cursor: not-allowed;
 }
 
 .accordion-step.locked .accordion-body {
   max-height: 0;
   padding: 0;
   overflow: hidden;
+  pointer-events: none;
 }
 
 .accordion-step.completed {
@@ -224,12 +228,10 @@ body {
   user-select: none;
 }
 
-.accordion-step.active .accordion-header,
 .accordion-step.completed .accordion-header {
   cursor: pointer;
 }
 
-.accordion-step.active .accordion-header:hover,
 .accordion-step.completed .accordion-header:hover {
   background: rgba(212, 145, 92, 0.04);
 }
@@ -350,6 +352,7 @@ body {
   opacity: 1;
   transform: translateY(0);
   transition: opacity 0.4s ease 0.05s, transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) 0.05s;
+  overflow: visible;
 }
 
 /* ===== AVATAR PICKER ===== */
@@ -363,6 +366,8 @@ body {
   display: flex;
   justify-content: center;
   margin-bottom: 20px;
+  position: relative;
+  z-index: 3;
 }
 
 .avatar-preview-circle {
@@ -1557,7 +1562,7 @@ body {
 
 .continue-btn.disabled {
   opacity: 0.4;
-  pointer-events: none;
+  cursor: not-allowed;
 }
 
 @keyframes ring-appear {
