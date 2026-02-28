@@ -1249,15 +1249,32 @@ function createShareItem(peerId, share) {
   item.className = 'lf-share-item';
   item.dataset.peerId = String(peerId);
 
-  // Clone video element to avoid detaching from original
   const videoEl = share.videoEl;
   if (videoEl.parentNode) videoEl.remove();
   item.appendChild(videoEl);
 
+  // Owner badge with avatar
+  const isSelf = peerId === myId;
+  const peer = peers.get(peerId);
+  const avatarColor = isSelf ? selectedColor : (peer?.avatar?.color || '#5865f2');
+  const avatarIcon = isSelf ? selectedIcon : (peer?.avatar?.icon || share.username[0].toUpperCase());
+  const displayName = isSelf ? username : share.username;
+
   const label = document.createElement('div');
   label.className = 'lf-share-label';
-  label.textContent = share.username;
+  label.innerHTML = `
+    <div class="badge-avatar" style="background: ${avatarColor}">${avatarIcon}</div>
+    <span class="badge-name">${escapeHtml(displayName)}</span>
+    <span class="badge-status">Демонстрирует экран</span>
+  `;
   item.appendChild(label);
+
+  // Auto-collapse badge after 3 seconds
+  setTimeout(() => {
+    if (label.isConnected) {
+      label.classList.add('collapsed');
+    }
+  }, 3000);
 
   // PiP button
   if (document.pictureInPictureEnabled) {
