@@ -13,16 +13,18 @@ const wss = new WebSocketServer({ server });
 
 // State
 const rooms = new Map();
+const chatHistory = new Map(); // room name -> array of messages
 let nextId = 1;
 
 rooms.set('General', new Map());
+chatHistory.set('General', []);
 
 function getRoomList() {
   const roomList = [];
   for (const [name, members] of rooms) {
     roomList.push({
       name,
-      users: Array.from(members.values()).map(m => ({ id: m.id, username: m.username })),
+      users: Array.from(members.values()).map(m => ({ id: m.id, username: m.username, avatar: m.avatar })),
       count: members.size,
     });
   }
@@ -57,11 +59,12 @@ wss.on('connection', (ws) => {
     switch (msg.type) {
       case 'create-room': {
         const name = msg.name?.trim();
-        if (!name || rooms.has(name)) {
-          ws.send(JSON.stringify({ type: 'error', message: 'Комната уже существует или имя пустое' }));
+        if (!name || name.length > 30 || rooms.has(name)) {
+          ws.send(JSON.stringify({ type: 'error', message: !name ? 'Имя комнаты пустое' : name.length > 30 ? 'Имя комнаты слишком длинное' : 'Комната уже существует' }));
           return;
         }
         rooms.set(name, new Map());
+        chatHistory.set(name, []);
         broadcastRoomUpdate();
         break;
       }
@@ -72,8 +75,14 @@ wss.on('connection', (ws) => {
           ws.send(JSON.stringify({ type: 'error', message: 'Комната не найдена' }));
           return;
         }
-        if (room.size >= 5) {
-          ws.send(JSON.stringify({ type: 'error', message: 'Комната полна (5/5)' }));
+        if (room.size >= 10) {
+          ws.send(JSON.stringify({ type: 'error', message: 'Комната полна (10/10)' }));
+          return;
+        }
+
+        const uname = msg.username?.trim();
+        if (!uname || uname.length > 20) {
+          ws.send(JSON.stringify({ type: 'error', message: 'Невалидное имя пользователя' }));
           return;
         }
 
@@ -88,25 +97,32 @@ wss.on('connection', (ws) => {
             // Cleanup empty non-default rooms
             if (oldRoom.size === 0 && currentRoom !== 'General') {
               rooms.delete(currentRoom);
+              chatHistory.delete(currentRoom);
             }
           }
         }
 
-        username = msg.username;
+        username = uname;
         currentRoom = msg.room;
-        room.set(id, { ws, id, username });
+        room.set(id, { ws, id, username, avatar: msg.avatar || { color: '#5865f2', icon: '🐱' }, muted: false, deafened: false });
 
         const existingPeers = [];
         for (const [memberId, member] of room) {
           if (memberId !== id) {
-            existingPeers.push({ id: memberId, username: member.username });
+            existingPeers.push({ id: memberId, username: member.username, avatar: member.avatar, muted: member.muted, deafened: member.deafened });
           }
         }
         ws.send(JSON.stringify({ type: 'joined', room: currentRoom, peers: existingPeers }));
 
+        // Send chat history
+        const history = chatHistory.get(currentRoom);
+        if (history && history.length > 0) {
+          ws.send(JSON.stringify({ type: 'chat-history', messages: history }));
+        }
+
         for (const [memberId, member] of room) {
           if (memberId !== id) {
-            member.ws.send(JSON.stringify({ type: 'peer-joined', id, username }));
+            member.ws.send(JSON.stringify({ type: 'peer-joined', id, username, avatar: msg.avatar || { color: '#5865f2', icon: '🐱' } }));
           }
         }
 
@@ -124,6 +140,7 @@ wss.on('connection', (ws) => {
             }
             if (room.size === 0 && currentRoom !== 'General') {
               rooms.delete(currentRoom);
+              chatHistory.delete(currentRoom);
             }
           }
           currentRoom = null;
@@ -144,6 +161,78 @@ wss.on('connection', (ws) => {
         }
         break;
       }
+
+      case 'user-state': {
+        if (!currentRoom) return;
+        const room = rooms.get(currentRoom);
+        if (!room) return;
+        const member = room.get(id);
+        if (member) {
+          member.muted = !!msg.muted;
+          member.deafened = !!msg.deafened;
+        }
+        // Broadcast to all others in room
+        for (const [memberId, m] of room) {
+          if (memberId !== id) {
+            m.ws.send(JSON.stringify({ type: 'user-state', id, muted: !!msg.muted, deafened: !!msg.deafened }));
+          }
+        }
+        break;
+      }
+
+      case 'update-profile': {
+        if (!currentRoom) return;
+        const room = rooms.get(currentRoom);
+        if (!room) return;
+        const newUsername = msg.username?.trim();
+        if (!newUsername || newUsername.length > 20) return;
+        username = newUsername;
+        const member = room.get(id);
+        if (member) {
+          member.username = newUsername;
+          member.avatar = msg.avatar || member.avatar;
+        }
+        // Broadcast to all others in room
+        for (const [memberId, m] of room) {
+          if (memberId !== id) {
+            m.ws.send(JSON.stringify({ type: 'profile-updated', id, username: newUsername, avatar: msg.avatar || member.avatar }));
+          }
+        }
+        broadcastRoomUpdate();
+        break;
+      }
+
+      case 'chat-message': {
+        if (!currentRoom || !username) return;
+        const text = msg.text?.trim();
+        if (!text || text.length > 500) return;
+        const room = rooms.get(currentRoom);
+        if (!room) return;
+        const chatMsg = { type: 'chat-message', from: id, username, text, timestamp: Date.now() };
+        // Save to history
+        const history = chatHistory.get(currentRoom);
+        if (history) {
+          history.push(chatMsg);
+          if (history.length > 100) history.shift();
+        }
+        for (const [, member] of room) {
+          member.ws.send(JSON.stringify(chatMsg));
+        }
+        break;
+      }
+
+      case 'screen-share-start':
+      case 'screen-share-stop': {
+        if (!currentRoom) return;
+        const room = rooms.get(currentRoom);
+        if (!room) return;
+        for (const [memberId, member] of room) {
+          if (memberId !== id) {
+            member.ws.send(JSON.stringify({ type: msg.type, id, username }));
+          }
+        }
+        break;
+      }
     }
   });
 
@@ -157,6 +246,7 @@ wss.on('connection', (ws) => {
         }
         if (room.size === 0 && currentRoom !== 'General') {
           rooms.delete(currentRoom);
+          chatHistory.delete(currentRoom);
         }
       }
       broadcastRoomUpdate();

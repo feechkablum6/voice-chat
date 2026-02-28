@@ -1,1 +1,5 @@
 node_modules/
+.worktrees/
+*-playground.html
+playground-*.html
+docs/plans/
