@@ -24,6 +24,35 @@
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
 
+/* ===== CUSTOM SCROLLBAR (Warm Clay) ===== */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--text-dim);
+  border-radius: 3px;
+  transition: background 0.2s;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
+}
+
+::-webkit-scrollbar-thumb:active {
+  background: var(--accent-hover);
+}
+
+/* Firefox */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--text-dim) transparent;
+}
+
 /* Skip link */
 .skip-link {
   position: absolute;
@@ -716,8 +745,10 @@ body {
 /* ===== ROOM SCREEN ===== */
 .room-layout {
   display: flex;
+  flex-direction: column;
   width: 100%;
   height: 100vh;
+  position: relative;
 }
 
 .sidebar {
@@ -734,8 +765,6 @@ body {
   font-size: 1.1rem;
   font-weight: 900;
   color: var(--text);
-  padding: 16px;
-  border-bottom: 1px solid var(--border);
   letter-spacing: -0.02em;
 }
 
@@ -893,12 +922,9 @@ body {
   animation: pulse-ring 1.5s ease-out infinite 0.4s;
 }
 
-.participant.muted .participant-avatar {
-  opacity: 0.7;
-}
-
+.participant.muted .participant-avatar,
 .participant.deafened .participant-avatar {
-  opacity: 0.5;
+  border-color: var(--danger);
 }
 
 .participant:not(.self) .participant-avatar {
@@ -948,6 +974,295 @@ body {
 .participant-you {
   font-size: 0.7rem;
   color: var(--text-dim);
+}
+
+/* ===== TOP BAR ===== */
+.top-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 20px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-card);
+  flex-shrink: 0;
+  z-index: 10;
+}
+
+.room-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.room-name {
+  font-family: 'Playfair Display', serif;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.room-meta {
+  font-size: 0.8rem;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ===== ROOM CONTENT ===== */
+.room-content {
+  flex: 1;
+  display: flex;
+  position: relative;
+  overflow: hidden;
+  min-height: 0;
+}
+
+/* ===== LAYOUT GRID ===== */
+.layout-grid {
+  display: none;
+  flex: 1;
+  min-height: 0;
+}
+
+.layout-grid.active {
+  display: flex;
+}
+
+/* ===== LAYOUT FOCUS ===== */
+.layout-focus {
+  display: none;
+  flex: 1;
+  padding: 20px;
+  gap: 20px;
+  min-height: 0;
+}
+
+.layout-focus.active {
+  display: flex;
+}
+
+.lf-main-area {
+  flex: 1;
+  display: flex;
+  gap: 16px;
+  min-width: 0;
+  transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.lf-sidebar {
+  width: 260px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  overflow-y: auto;
+  flex-shrink: 0;
+}
+
+/* ===== SHARE ITEM (Main Area) ===== */
+.lf-share-item {
+  flex: 1;
+  background: var(--bg-card);
+  border-radius: var(--radius);
+  border: 1px solid rgba(255,255,255,0.05);
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+  min-width: 0;
+}
+
+.lf-share-item video {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.lf-share-label {
+  position: absolute;
+  bottom: 16px;
+  left: 16px;
+  background: rgba(0,0,0,0.7);
+  backdrop-filter: blur(10px);
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: white;
+  pointer-events: none;
+}
+
+/* ===== MINI CARD (Sidebar) ===== */
+.mini-card {
+  background: var(--bg-card);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border: 1px solid rgba(255,255,255,0.02);
+  cursor: pointer;
+  position: relative;
+  transition: background 0.2s, border-color 0.2s;
+}
+
+.mini-card:hover {
+  background: var(--bg-elevated);
+}
+
+.mini-card .mini-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.1rem;
+  flex-shrink: 0;
+  position: relative;
+}
+
+.mini-card .mini-name {
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mini-card .mini-you {
+  font-size: 0.7rem;
+  color: var(--text-dim);
+}
+
+.mini-card.speaking .mini-avatar {
+  box-shadow: 0 0 0 2px var(--success);
+}
+
+.mini-card.muted .mini-avatar,
+.mini-card.deafened .mini-avatar {
+  box-shadow: 0 0 0 2px var(--danger);
+}
+
+.mini-card.has-screen {
+  padding: 6px;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0;
+}
+
+.mini-screen-thumb {
+  height: 100px;
+  border-radius: var(--radius-input);
+  overflow: hidden;
+  position: relative;
+  background: #000;
+}
+
+.mini-screen-thumb video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.mini-screen-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0,0,0,0.3);
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.mini-card.has-screen:hover .mini-screen-overlay {
+  opacity: 1;
+}
+
+.mini-info {
+  padding: 8px 6px 4px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.8rem;
+  color: var(--text);
+}
+
+.mini-info .mini-avatar {
+  width: 22px;
+  height: 22px;
+  font-size: 0.7rem;
+}
+
+.mini-card.active-screen {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
+/* ===== CONTEXT MENU ===== */
+.context-menu {
+  position: fixed;
+  background: var(--bg-elevated);
+  border: 1px solid rgba(255,255,255,0.1);
+  box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+  border-radius: var(--radius-input);
+  padding: 6px;
+  min-width: 220px;
+  z-index: 1000;
+  opacity: 0;
+  pointer-events: none;
+  transform: scale(0.95);
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+.context-menu.show {
+  opacity: 1;
+  pointer-events: auto;
+  transform: scale(1);
+}
+
+.ctx-item {
+  padding: 10px 12px;
+  font-size: 0.85rem;
+  border-radius: 6px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--text);
+  transition: background 0.15s;
+}
+
+.ctx-item:hover {
+  background: var(--accent);
+  color: #1a1410;
+}
+
+.ctx-item svg {
+  width: 16px;
+  height: 16px;
+  fill: currentColor;
+  flex-shrink: 0;
+}
+
+/* ===== CONTROLS WRAPPER ===== */
+.controls-wrapper {
+  flex-shrink: 0;
+  z-index: 10;
+}
+
+/* ===== CTRL BUTTONS (SVG) ===== */
+.ctrl-btn svg {
+  width: 22px;
+  height: 22px;
+  fill: currentColor;
+}
+
+/* ===== FLIP ANIMATION UTILITY ===== */
+.flip-animating {
+  transition: none !important;
 }
 
 /* ===== CONTROLS ===== */
@@ -1163,20 +1478,105 @@ body {
   font-size: 0.85rem;
 }
 
-/* ===== CHAT PANEL ===== */
+/* ===== CHAT PANEL (Floating Bubble) ===== */
 .chat-panel {
-  width: 0;
-  overflow: hidden;
+  position: fixed;
+  bottom: 90px;
+  right: 20px;
+  width: 340px;
+  height: 420px;
+  min-width: 280px;
+  min-height: 220px;
+  max-width: calc(100vw - 16px);
+  max-height: calc(100vh - 16px);
   background: var(--bg-card);
-  border-left: 1px solid var(--border);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: 0 12px 40px rgba(0,0,0,0.5);
   display: flex;
   flex-direction: column;
-  transition: width 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-  flex-shrink: 0;
+  overflow: hidden;
+  z-index: 50;
+  opacity: 0;
+  transform: scale(0.92) translateY(8px);
+  pointer-events: none;
+  visibility: hidden;
+  transform-origin: bottom right;
+  transition: opacity 0.3s cubic-bezier(0.16, 1, 0.3, 1),
+              transform 0.3s cubic-bezier(0.16, 1, 0.3, 1),
+              visibility 0s 0.3s;
+  will-change: transform, opacity;
 }
 
 .chat-panel.open {
-  width: 320px;
+  opacity: 1;
+  transform: scale(1) translateY(0);
+  pointer-events: auto;
+  visibility: visible;
+  transition: opacity 0.3s cubic-bezier(0.16, 1, 0.3, 1),
+              transform 0.3s cubic-bezier(0.16, 1, 0.3, 1),
+              visibility 0s;
+}
+
+.chat-panel.dragging,
+.chat-panel.resizing {
+  transition: none !important;
+  user-select: none;
+}
+
+/* Resize handle (top-left corner, inside border-radius) */
+.chat-resize-handle {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  width: 22px;
+  height: 22px;
+  cursor: nw-resize;
+  z-index: 5;
+  border-radius: 6px;
+  transition: background 0.2s;
+}
+
+.chat-resize-handle::before,
+.chat-resize-handle::after {
+  content: '';
+  position: absolute;
+  background: var(--text-dim);
+  border-radius: 1px;
+  opacity: 0;
+  transition: opacity 0.2s, background 0.2s;
+}
+
+/* Two diagonal lines */
+.chat-resize-handle::before {
+  width: 10px;
+  height: 1.5px;
+  top: 10px;
+  left: 4px;
+  transform: rotate(-45deg);
+}
+
+.chat-resize-handle::after {
+  width: 6px;
+  height: 1.5px;
+  top: 13px;
+  left: 3px;
+  transform: rotate(-45deg);
+}
+
+.chat-panel:hover .chat-resize-handle::before,
+.chat-panel:hover .chat-resize-handle::after {
+  opacity: 0.5;
+}
+
+.chat-resize-handle:hover {
+  background: var(--accent-soft);
+}
+
+.chat-resize-handle:hover::before,
+.chat-resize-handle:hover::after {
+  opacity: 1 !important;
+  background: var(--accent);
 }
 
 .chat-header {
@@ -1185,6 +1585,13 @@ body {
   justify-content: space-between;
   padding: 12px 16px;
   border-bottom: 1px solid var(--border);
+  cursor: grab;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.chat-header:active {
+  cursor: grabbing;
 }
 
 .chat-header h3 {
@@ -1626,7 +2033,7 @@ body {
   .accordion-content-inner,
   .accordion-header,
   .participant-avatar,
-  .chat-panel,
+  .chat-panel:not(.dragging):not(.resizing),
   .toast,
   .avatar-preview-circle {
     transition: none !important;
@@ -1669,10 +2076,19 @@ body {
   .chat-panel.open {
     position: fixed;
     inset: 0;
-    width: 100%;
+    width: 100% !important;
+    height: 100% !important;
+    border-radius: 0;
+    bottom: 0 !important;
+    right: 0 !important;
     z-index: 50;
     background: var(--bg);
     overscroll-behavior: contain;
+    transform: none;
+  }
+
+  .chat-panel.open .chat-resize-handle {
+    display: none;
   }
 
   button, .room-item, .sidebar-room, .color-option, .icon-option, a {

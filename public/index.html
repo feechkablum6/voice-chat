@@ -122,8 +122,7 @@
       <div class="room-content" id="room-content">
         <!-- Layouts will be injected/managed here by JS -->
         <div id="layout-grid" class="layout-grid active">
-          <!-- Fallback to keep app.js happy until Task 4 -->
-          <div id="participants" class="participants" style="width:100%;height:100%"></div>
+          <div id="participants" class="participants"></div>
         </div>
 
         <div id="layout-focus" class="layout-focus">
@@ -165,7 +164,7 @@
         </div>
       </div>
 
-      <div id="context-menu" class="context-menu" style="display:none">
+      <div id="context-menu" class="context-menu">
         <div class="ctx-item" id="ctx-swap">
           <svg viewBox="0 0 24 24"><path d="M19 8l-4 4h3c0 3.31-2.69 6-6 6-1.01 0-1.97-.25-2.8-.7l-1.46 1.46C8.97 19.54 10.43 20 12 20c4.42 0 8-3.58 8-8h3l-4-4zM6 12c0-3.31 2.69-6 6-6 1.01 0 1.97.25 2.8.7l1.46-1.46C15.03 4.46 13.57 4 12 4c-4.42 0-8 3.58-8 8H1l4 4 4-4H6z"/></svg>
           <span>Смотреть вместо текущей</span>
@@ -177,7 +176,8 @@
       </div>
 
       <div id="chat-panel" class="chat-panel">
-        <div class="chat-header">
+        <div class="chat-resize-handle" id="chat-resize-handle"></div>
+        <div class="chat-header" id="chat-drag-handle">
           <h3>Чат</h3>
           <button id="chat-close-btn" class="btn-icon" title="Закрыть" aria-label="Закрыть чат">✕</button>
         </div>

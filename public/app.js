@@ -116,7 +116,18 @@ const chatBtn = document.getElementById('chat-btn');
 const chatCloseBtn = document.getElementById('chat-close-btn');
 const chatUnread = document.getElementById('chat-unread');
 const screenBtn = document.getElementById('screen-btn');
-const mainArea = document.querySelector('.main-area');
+const layoutGrid = document.getElementById('layout-grid');
+const layoutFocus = document.getElementById('layout-focus');
+const mainScreensContainer = document.getElementById('main-screens-container');
+const sidebarContainer = document.getElementById('sidebar-container');
+const contextMenu = document.getElementById('context-menu');
+const ctxSwap = document.getElementById('ctx-swap');
+const ctxSplit = document.getElementById('ctx-split');
+
+// Layout state
+let currentLayout = 'grid'; // 'grid' | 'focus'
+let focusedShareId = null; // peerId whose screen is in main area
+let contextMenuTargetId = null; // peerId for context menu actions
 
 const ICE_SERVERS = [{ urls: 'stun:stun.l.google.com:19302' }];
 
@@ -174,6 +185,7 @@ function connectWS() {
       unreadCount = 0;
       chatUnread.style.display = 'none';
       currentRoom = null;
+      resetLayoutState();
 
       muteBtn.classList.remove('muted');
       micIcon.style.display = '';
@@ -354,17 +366,7 @@ function renderSidebarRooms() {
 
 // ===== Participants Rendering =====
 function renderParticipants() {
-  participantsEl.innerHTML = '';
-
-  // Add self
-  const selfEl = createParticipantEl(myId, username, true, { color: selectedColor, icon: selectedIcon }, null);
-  participantsEl.appendChild(selfEl);
-
-  // Add peers
-  for (const [id, peer] of peers) {
-    const el = createParticipantEl(id, peer.username, false, peer.avatar, { muted: peer.muted, deafened: peer.deafened });
-    participantsEl.appendChild(el);
-  }
+  updateRoomUI();
 }
 
 function createParticipantEl(id, name, isSelf, avatar, peerState) {
@@ -515,7 +517,7 @@ function leaveRoom() {
 
   stopScreenShare();
   activeScreenShares.clear();
-  renderScreenShares();
+  resetLayoutState();
 
   showLobbyScreen();
 }
@@ -784,6 +786,209 @@ function toggleChat() {
   }
 }
 
+function closeChat() {
+  if (!isChatOpen) return;
+  isChatOpen = false;
+  chatPanel.classList.remove('open');
+}
+
+// Close chat on ESC
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && isChatOpen) {
+    closeChat();
+  }
+});
+
+// Close chat on click outside
+document.addEventListener('pointerdown', (e) => {
+  if (!isChatOpen) return;
+  if (chatPanel.contains(e.target)) return;
+  if (e.target === chatBtn || chatBtn.contains(e.target)) return;
+  closeChat();
+});
+
+// ===== Chat Drag & Resize =====
+(function initChatBubble() {
+  const dragHandle = document.getElementById('chat-drag-handle');
+  const resizeHandle = document.getElementById('chat-resize-handle');
+  let isDragging = false;
+  let isResizing = false;
+  let startX, startY, startW, startH, startRight, startBottom;
+
+  // Inertia state
+  let velX = 0, velY = 0;
+  let prevX = 0, prevY = 0;
+  let prevTime = 0;
+  let inertiaRaf = null;
+
+  function getChatRect() {
+    const style = getComputedStyle(chatPanel);
+    return {
+      right: parseFloat(style.right) || 20,
+      bottom: parseFloat(style.bottom) || 90,
+      width: chatPanel.offsetWidth,
+      height: chatPanel.offsetHeight
+    };
+  }
+
+  function clampPosition(r, b) {
+    const maxR = window.innerWidth - chatPanel.offsetWidth;
+    const maxB = window.innerHeight - chatPanel.offsetHeight;
+    return {
+      right: Math.max(0, Math.min(r, maxR)),
+      bottom: Math.max(0, Math.min(b, maxB))
+    };
+  }
+
+  function stopInertia() {
+    if (inertiaRaf) {
+      cancelAnimationFrame(inertiaRaf);
+      inertiaRaf = null;
+    }
+  }
+
+  function runInertia() {
+    const friction = 0.93;
+    const minVel = 0.4;
+    const bounceDampen = 0.25;
+
+    function step() {
+      velX *= friction;
+      velY *= friction;
+
+      if (Math.abs(velX) < minVel && Math.abs(velY) < minVel) {
+        inertiaRaf = null;
+        return;
+      }
+
+      const curRight = parseFloat(chatPanel.style.right) || 20;
+      const curBottom = parseFloat(chatPanel.style.bottom) || 90;
+      const maxR = window.innerWidth - chatPanel.offsetWidth;
+      const maxB = window.innerHeight - chatPanel.offsetHeight;
+
+      let nextRight = curRight - velX;
+      let nextBottom = curBottom - velY;
+
+      // Reflect overshoot instead of clamping
+      if (nextRight < 0) {
+        nextRight = -nextRight * bounceDampen;
+        velX = Math.abs(velX) * bounceDampen;
+      } else if (nextRight > maxR) {
+        nextRight = maxR - (nextRight - maxR) * bounceDampen;
+        velX = -Math.abs(velX) * bounceDampen;
+      }
+
+      if (nextBottom < 0) {
+        nextBottom = -nextBottom * bounceDampen;
+        velY = Math.abs(velY) * bounceDampen;
+      } else if (nextBottom > maxB) {
+        nextBottom = maxB - (nextBottom - maxB) * bounceDampen;
+        velY = -Math.abs(velY) * bounceDampen;
+      }
+
+      // Safety clamp (prevent any micro-overshoot from floating point)
+      nextRight = Math.max(0, Math.min(nextRight, maxR));
+      nextBottom = Math.max(0, Math.min(nextBottom, maxB));
+
+      chatPanel.style.right = nextRight + 'px';
+      chatPanel.style.bottom = nextBottom + 'px';
+
+      inertiaRaf = requestAnimationFrame(step);
+    }
+    inertiaRaf = requestAnimationFrame(step);
+  }
+
+  // Drag
+  dragHandle.addEventListener('pointerdown', (e) => {
+    if (e.target.closest('.btn-icon')) return;
+    if (window.innerWidth <= 640) return;
+    e.preventDefault();
+    stopInertia();
+    isDragging = true;
+    chatPanel.classList.add('dragging');
+    const rect = getChatRect();
+    startX = e.clientX;
+    startY = e.clientY;
+    startRight = rect.right;
+    startBottom = rect.bottom;
+    prevX = e.clientX;
+    prevY = e.clientY;
+    prevTime = performance.now();
+    velX = 0;
+    velY = 0;
+    dragHandle.setPointerCapture(e.pointerId);
+  });
+
+  dragHandle.addEventListener('pointermove', (e) => {
+    if (!isDragging) return;
+    const now = performance.now();
+    const dt = Math.max(1, now - prevTime);
+
+    // Track velocity (exponential smoothing)
+    const instantVX = (e.clientX - prevX) / dt * 16;
+    const instantVY = (e.clientY - prevY) / dt * 16;
+    velX = velX * 0.4 + instantVX * 0.6;
+    velY = velY * 0.4 + instantVY * 0.6;
+
+    prevX = e.clientX;
+    prevY = e.clientY;
+    prevTime = now;
+
+    const dx = e.clientX - startX;
+    const dy = e.clientY - startY;
+    const pos = clampPosition(startRight - dx, startBottom - dy);
+    chatPanel.style.right = pos.right + 'px';
+    chatPanel.style.bottom = pos.bottom + 'px';
+  });
+
+  dragHandle.addEventListener('pointerup', () => {
+    if (!isDragging) return;
+    isDragging = false;
+    chatPanel.classList.remove('dragging');
+
+    // Launch inertia if velocity is significant
+    if (Math.abs(velX) > 1 || Math.abs(velY) > 1) {
+      runInertia();
+    }
+  });
+
+  // Resize (top-left corner → grows up-left)
+  resizeHandle.addEventListener('pointerdown', (e) => {
+    if (window.innerWidth <= 640) return;
+    e.preventDefault();
+    e.stopPropagation();
+    isResizing = true;
+    chatPanel.classList.add('resizing');
+    const rect = getChatRect();
+    startX = e.clientX;
+    startY = e.clientY;
+    startW = rect.width;
+    startH = rect.height;
+    startRight = rect.right;
+    startBottom = rect.bottom;
+    resizeHandle.setPointerCapture(e.pointerId);
+  });
+
+  resizeHandle.addEventListener('pointermove', (e) => {
+    if (!isResizing) return;
+    const dx = startX - e.clientX;
+    const dy = startY - e.clientY;
+    const minW = 280, minH = 220;
+    const maxW = window.innerWidth - 16;
+    const maxH = window.innerHeight - 16;
+    let newW = Math.max(minW, Math.min(startW + dx, maxW));
+    let newH = Math.max(minH, Math.min(startH + dy, maxH));
+    chatPanel.style.width = newW + 'px';
+    chatPanel.style.height = newH + 'px';
+  });
+
+  resizeHandle.addEventListener('pointerup', () => {
+    if (!isResizing) return;
+    isResizing = false;
+    chatPanel.classList.remove('resizing');
+  });
+})();
+
 function sendChatMessage() {
   const text = chatInput.value.trim();
   if (!text) return;
@@ -877,67 +1082,317 @@ function stopScreenShare() {
 }
 
 function renderScreenShares() {
-  // Remove existing screenshare area
-  const existing = document.querySelector('.screenshare-area');
-  if (existing) existing.remove();
-
-  const shares = Array.from(activeScreenShares.entries());
-
-  if (shares.length === 0) {
-    mainArea.classList.remove('has-screenshare');
-    return;
-  }
-
-  mainArea.classList.add('has-screenshare');
-  const area = document.createElement('div');
-  area.className = `screenshare-area count-${Math.min(shares.length, 4)}`;
-
-  for (const [, share] of shares) {
-    const item = document.createElement('div');
-    item.className = 'screenshare-item';
-    item.appendChild(share.videoEl);
-
-    const label = document.createElement('div');
-    label.className = 'screenshare-label';
-    label.textContent = share.username;
-    item.appendChild(label);
-
-    // PiP button
-    if (document.pictureInPictureEnabled) {
-      const pipBtn = document.createElement('button');
-      pipBtn.className = 'screenshare-pip-btn';
-      pipBtn.title = 'Picture-in-Picture';
-      pipBtn.setAttribute('aria-label', 'Picture-in-Picture');
-      pipBtn.innerHTML = `<svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true"><path d="M19 11h-8v6h8v-6zm4 8V4.98C23 3.88 22.1 3 21 3H3c-1.1 0-2 .88-2 1.98V19c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2zm-2 .02H3V4.97h18v14.05z"/></svg>`;
-      pipBtn.addEventListener('click', async (e) => {
-        e.stopPropagation();
-        try {
-          if (document.pictureInPictureElement) {
-            await document.exitPictureInPicture();
-          }
-          await share.videoEl.requestPictureInPicture();
-        } catch (err) {
-          showToast('PiP недоступен', true);
-        }
-      });
-      item.appendChild(pipBtn);
-    }
-
-    item.setAttribute('role', 'button');
-    item.setAttribute('tabindex', '0');
-    item.setAttribute('aria-label', `Экран ${share.username}`);
-    item.addEventListener('click', () => {
-      item.classList.toggle('focused');
-    });
-    item.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); item.classList.toggle('focused'); }
-    });
-    area.appendChild(item);
-  }
-
-  // Insert before participants
-  mainArea.insertBefore(area, participantsEl);
+  updateRoomUI();
 }
+
+// ===== Layout Management =====
+function resetLayoutState() {
+  currentLayout = 'grid';
+  focusedShareId = null;
+  contextMenuTargetId = null;
+  hideContextMenu();
+  layoutGrid.classList.add('active');
+  layoutFocus.classList.remove('active');
+  participantsEl.innerHTML = '';
+  mainScreensContainer.innerHTML = '';
+  sidebarContainer.innerHTML = '';
+}
+
+function updateRoomUI() {
+  const shares = Array.from(activeScreenShares.entries());
+  const hasShares = shares.length > 0;
+
+  if (hasShares && currentLayout === 'grid') {
+    // Transition from grid to focus
+    const allCards = Array.from(participantsEl.children);
+    animateFLIP(allCards, () => {
+      switchToFocusLayout(shares);
+    });
+  } else if (!hasShares && currentLayout === 'focus') {
+    // Transition from focus to grid
+    const allCards = [...mainScreensContainer.children, ...sidebarContainer.children];
+    animateFLIP(allCards, () => {
+      switchToGridLayout();
+    });
+  } else if (hasShares) {
+    // Already in focus, just re-render
+    renderFocusContent(shares);
+  } else {
+    // Already in grid, just re-render
+    renderGridContent();
+  }
+}
+
+function switchToGridLayout() {
+  currentLayout = 'grid';
+  focusedShareId = null;
+  layoutFocus.classList.remove('active');
+  layoutGrid.classList.add('active');
+  mainScreensContainer.innerHTML = '';
+  sidebarContainer.innerHTML = '';
+  renderGridContent();
+}
+
+function switchToFocusLayout(shares) {
+  currentLayout = 'focus';
+  // Auto-focus the first share
+  if (!focusedShareId || !activeScreenShares.has(focusedShareId)) {
+    focusedShareId = shares[0][0];
+  }
+  layoutGrid.classList.remove('active');
+  layoutFocus.classList.add('active');
+  participantsEl.innerHTML = '';
+  renderFocusContent(shares);
+}
+
+function renderGridContent() {
+  participantsEl.innerHTML = '';
+
+  // Add self
+  const selfEl = createParticipantEl(myId, username, true, { color: selectedColor, icon: selectedIcon }, null);
+  participantsEl.appendChild(selfEl);
+
+  // Add peers
+  for (const [id, peer] of peers) {
+    const el = createParticipantEl(id, peer.username, false, peer.avatar, { muted: peer.muted, deafened: peer.deafened });
+    participantsEl.appendChild(el);
+  }
+}
+
+function renderFocusContent(shares) {
+  if (!shares) shares = Array.from(activeScreenShares.entries());
+
+  // Validate focusedShareId
+  if (!focusedShareId || !activeScreenShares.has(focusedShareId)) {
+    focusedShareId = shares.length > 0 ? shares[0][0] : null;
+  }
+
+  // Main area: focused screen share(s)
+  mainScreensContainer.innerHTML = '';
+  if (focusedShareId) {
+    const share = activeScreenShares.get(focusedShareId);
+    if (share) {
+      const item = createShareItem(focusedShareId, share);
+      mainScreensContainer.appendChild(item);
+    }
+  }
+
+  // Sidebar: all participants as mini-cards + non-focused screen shares as thumbnails
+  sidebarContainer.innerHTML = '';
+
+  // Self mini-card
+  const selfCard = createMiniCard(myId, username, true, { color: selectedColor, icon: selectedIcon }, null);
+  sidebarContainer.appendChild(selfCard);
+
+  // Peer mini-cards
+  for (const [id, peer] of peers) {
+    const hasScreen = activeScreenShares.has(id);
+    const isInMain = id === focusedShareId;
+
+    if (hasScreen && !isInMain) {
+      // Show as screen thumbnail card
+      const share = activeScreenShares.get(id);
+      const thumbCard = createScreenThumbCard(id, peer, share);
+      sidebarContainer.appendChild(thumbCard);
+    } else if (!isInMain) {
+      // Show as regular mini-card
+      const card = createMiniCard(id, peer.username, false, peer.avatar, { muted: peer.muted, deafened: peer.deafened });
+      sidebarContainer.appendChild(card);
+    }
+  }
+
+  // Self screen share thumbnail (if self is sharing but not focused)
+  if (activeScreenShares.has(myId) && focusedShareId !== myId) {
+    const selfShare = activeScreenShares.get(myId);
+    const thumbCard = createScreenThumbCard(myId, { username: username + ' (ты)', avatar: { color: selectedColor, icon: selectedIcon } }, selfShare);
+    sidebarContainer.appendChild(thumbCard);
+  }
+}
+
+function createShareItem(peerId, share) {
+  const item = document.createElement('div');
+  item.className = 'lf-share-item';
+  item.dataset.peerId = String(peerId);
+
+  // Clone video element to avoid detaching from original
+  const videoEl = share.videoEl;
+  if (videoEl.parentNode) videoEl.remove();
+  item.appendChild(videoEl);
+
+  const label = document.createElement('div');
+  label.className = 'lf-share-label';
+  label.textContent = share.username;
+  item.appendChild(label);
+
+  // PiP button
+  if (document.pictureInPictureEnabled) {
+    const pipBtn = document.createElement('button');
+    pipBtn.className = 'screenshare-pip-btn';
+    pipBtn.title = 'Picture-in-Picture';
+    pipBtn.setAttribute('aria-label', 'Picture-in-Picture');
+    pipBtn.innerHTML = `<svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true"><path d="M19 11h-8v6h8v-6zm4 8V4.98C23 3.88 22.1 3 21 3H3c-1.1 0-2 .88-2 1.98V19c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2zm-2 .02H3V4.97h18v14.05z"/></svg>`;
+    pipBtn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      try {
+        if (document.pictureInPictureElement) {
+          await document.exitPictureInPicture();
+        }
+        await videoEl.requestPictureInPicture();
+      } catch (err) {
+        showToast('PiP недоступен', true);
+      }
+    });
+    item.appendChild(pipBtn);
+  }
+
+  return item;
+}
+
+function createMiniCard(id, name, isSelf, avatar, peerState) {
+  const card = document.createElement('div');
+  card.className = 'mini-card';
+  card.id = `participant-${id}`;
+
+  const isMutedState = isSelf ? isMuted : peerState?.muted;
+  const isDeafenedState = isSelf ? isDeafened : peerState?.deafened;
+
+  if (isMutedState) card.classList.add('muted');
+  if (isDeafenedState) card.classList.add('deafened');
+
+  const avatarColor = avatar ? avatar.color : '#5865f2';
+  const avatarIcon = avatar ? avatar.icon : name[0].toUpperCase();
+
+  let miniBadges = '';
+  if (!isSelf) {
+    if (isMutedState) miniBadges += '<div class="status-badge mute-badge" title="Микрофон выключен"><svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor"><path d="M19 11h-1.7c0 .74-.16 1.43-.43 2.05l1.23 1.23c.56-.98.9-2.09.9-3.28zm-4.02.17c0-.06.02-.11.02-.17V5c0-1.66-1.34-3-3-3S9 3.34 9 5v.18l5.98 5.99zM4.27 3L3 4.27l6.01 6.01V11c0 1.66 1.33 3 2.99 3 .22 0 .44-.03.65-.08l1.66 1.66c-.71.33-1.5.52-2.31.52-2.76 0-5.3-2.1-5.3-5.1H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c.91-.13 1.77-.45 2.54-.9L19.73 21 21 19.73 4.27 3z"/></svg></div>';
+    if (isDeafenedState) miniBadges += '<div class="status-badge deafen-badge" title="Звук выключен"><svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor"><path d="M12 1c-4.97 0-9 4.03-9 9v7c0 1.66 1.34 3 3 3h3v-8H5v-2c0-3.87 3.13-7 7-7s7 3.13 7 7v2h-4v8h3c1.66 0 3-1.34 3-3v-7c0-4.97-4.03-9-9-9z"/><line x1="3" y1="3" x2="21" y2="21" stroke="currentColor" stroke-width="2"/></svg></div>';
+  }
+
+  card.innerHTML = `
+    <div class="mini-avatar" style="background: ${avatarColor}">
+      ${avatarIcon}
+      ${miniBadges ? '<div class="status-badges">' + miniBadges + '</div>' : ''}
+    </div>
+    <div class="mini-name">${escapeHtml(name)}</div>
+    ${isSelf ? '<div class="mini-you">ты</div>' : ''}
+  `;
+
+  if (isSelf) {
+    card.addEventListener('click', (e) => {
+      e.stopPropagation();
+      showProfilePopup(card.querySelector('.mini-avatar'));
+    });
+  } else {
+    card.addEventListener('click', (e) => {
+      e.stopPropagation();
+      showVolumePopup(id, card.querySelector('.mini-avatar'));
+    });
+  }
+
+  return card;
+}
+
+function createScreenThumbCard(peerId, peer, share) {
+  const card = document.createElement('div');
+  card.className = 'mini-card has-screen';
+  card.dataset.peerId = String(peerId);
+
+  const avatarColor = peer.avatar ? peer.avatar.color : '#5865f2';
+  const avatarIcon = peer.avatar ? peer.avatar.icon : peer.username[0].toUpperCase();
+  const displayName = share.isSelf ? peer.username : peer.username;
+
+  // Thumbnail with cloned video
+  const thumb = document.createElement('div');
+  thumb.className = 'mini-screen-thumb';
+
+  const thumbVideo = document.createElement('video');
+  thumbVideo.autoplay = true;
+  thumbVideo.playsInline = true;
+  thumbVideo.muted = true;
+  thumbVideo.srcObject = share.stream || share.videoEl?.srcObject;
+  thumb.appendChild(thumbVideo);
+
+  const overlay = document.createElement('div');
+  overlay.className = 'mini-screen-overlay';
+  overlay.innerHTML = '<svg viewBox="0 0 24 24" width="24" height="24" fill="white"><path d="M8 5v14l11-7z"/></svg>';
+  thumb.appendChild(overlay);
+  card.appendChild(thumb);
+
+  const info = document.createElement('div');
+  info.className = 'mini-info';
+  info.innerHTML = `
+    <div class="mini-avatar" style="background: ${avatarColor}">${avatarIcon}</div>
+    <span>${escapeHtml(displayName)}</span>
+  `;
+  card.appendChild(info);
+
+  // Click to swap into main area
+  card.addEventListener('click', (e) => {
+    e.stopPropagation();
+    swapFocusedShare(peerId);
+  });
+
+  // Right-click for context menu
+  card.addEventListener('contextmenu', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    showContextMenu(e.clientX, e.clientY, peerId);
+  });
+
+  return card;
+}
+
+function swapFocusedShare(newPeerId) {
+  if (!activeScreenShares.has(newPeerId)) return;
+
+  const allEls = [...mainScreensContainer.children, ...sidebarContainer.children];
+  animateFLIP(allEls, () => {
+    focusedShareId = newPeerId;
+    renderFocusContent();
+  });
+}
+
+// ===== Context Menu =====
+function showContextMenu(x, y, peerId) {
+  contextMenuTargetId = peerId;
+  contextMenu.style.left = `${Math.min(x, window.innerWidth - 240)}px`;
+  contextMenu.style.top = `${Math.min(y, window.innerHeight - 100)}px`;
+  contextMenu.classList.add('show');
+
+  setTimeout(() => {
+    document.addEventListener('click', hideContextMenuOutside);
+  }, 10);
+}
+
+function hideContextMenu() {
+  contextMenu.classList.remove('show');
+  contextMenuTargetId = null;
+  document.removeEventListener('click', hideContextMenuOutside);
+}
+
+function hideContextMenuOutside(e) {
+  if (!contextMenu.contains(e.target)) {
+    hideContextMenu();
+  }
+}
+
+// Context menu actions
+ctxSwap.addEventListener('click', () => {
+  if (contextMenuTargetId) {
+    swapFocusedShare(contextMenuTargetId);
+  }
+  hideContextMenu();
+});
+
+ctxSplit.addEventListener('click', () => {
+  // Split: show both screens in main area side by side
+  if (contextMenuTargetId && activeScreenShares.has(contextMenuTargetId)) {
+    const share = activeScreenShares.get(contextMenuTargetId);
+    const item = createShareItem(contextMenuTargetId, share);
+    mainScreensContainer.appendChild(item);
+  }
+  hideContextMenu();
+});
 
 // ===== Profile Popup =====
 let activeProfilePopup = null;
@@ -1466,7 +1921,7 @@ function lockStep(step) {
 }
 
 // ===== Event Listeners =====
-muteBtn.addEventListener('click', toggleMute);
+muteBtn.addEventListener('click', () => toggleMute());
 deafenBtn.addEventListener('click', toggleDeafen);
 screenBtn.addEventListener('click', toggleScreenShare);
 chatBtn.addEventListener('click', toggleChat);
