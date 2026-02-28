@@ -487,6 +487,7 @@ async function joinRoom(roomName) {
 function leaveRoom() {
   closeProfilePopup();
   closeVolumePopup();
+  hideSelfPip();
   send({ type: 'leave' });
 
   // Cleanup all peers
@@ -1281,6 +1282,8 @@ function resetLayoutState() {
   participantsEl.innerHTML = '';
   mainScreensContainer.innerHTML = '';
   sidebarContainer.innerHTML = '';
+  presenterTabs.innerHTML = '';
+  hideSelfPip();
 }
 
 function updateRoomUI() {
@@ -1542,56 +1545,6 @@ function createMiniCard(id, name, isSelf, avatar, peerState) {
       showVolumePopup(id, card.querySelector('.mini-avatar'));
     });
   }
-
-  return card;
-}
-
-function createScreenThumbCard(peerId, peer, share) {
-  const card = document.createElement('div');
-  card.className = 'mini-card has-screen';
-  card.dataset.peerId = String(peerId);
-
-  const avatarColor = peer.avatar ? peer.avatar.color : '#5865f2';
-  const avatarIcon = peer.avatar ? peer.avatar.icon : peer.username[0].toUpperCase();
-  const displayName = share.isSelf ? peer.username : peer.username;
-
-  // Thumbnail with cloned video
-  const thumb = document.createElement('div');
-  thumb.className = 'mini-screen-thumb';
-
-  const thumbVideo = document.createElement('video');
-  thumbVideo.autoplay = true;
-  thumbVideo.playsInline = true;
-  thumbVideo.muted = true;
-  thumbVideo.srcObject = share.stream || share.videoEl?.srcObject;
-  thumb.appendChild(thumbVideo);
-
-  const overlay = document.createElement('div');
-  overlay.className = 'mini-screen-overlay';
-  overlay.innerHTML = '<svg viewBox="0 0 24 24" width="24" height="24" fill="white"><path d="M8 5v14l11-7z"/></svg>';
-  thumb.appendChild(overlay);
-  card.appendChild(thumb);
-
-  const info = document.createElement('div');
-  info.className = 'mini-info';
-  info.innerHTML = `
-    <div class="mini-avatar" style="background: ${avatarColor}">${avatarIcon}</div>
-    <span>${escapeHtml(displayName)}</span>
-  `;
-  card.appendChild(info);
-
-  // Click to swap into main area
-  card.addEventListener('click', (e) => {
-    e.stopPropagation();
-    swapFocusedShare(peerId);
-  });
-
-  // Right-click for context menu
-  card.addEventListener('contextmenu', (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    showContextMenu(e.clientX, e.clientY, peerId);
-  });
 
   return card;
 }

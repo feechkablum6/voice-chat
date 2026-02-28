@@ -1342,42 +1342,6 @@ body {
   box-shadow: 0 0 0 2px var(--danger);
 }
 
-.mini-card.has-screen {
-  padding: 6px;
-  flex-direction: column;
-  align-items: stretch;
-  gap: 0;
-}
-
-.mini-screen-thumb {
-  height: 100px;
-  border-radius: var(--radius-input);
-  overflow: hidden;
-  position: relative;
-  background: #000;
-}
-
-.mini-screen-thumb video {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.mini-screen-overlay {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(0,0,0,0.3);
-  opacity: 0;
-  transition: opacity 0.2s;
-}
-
-.mini-card.has-screen:hover .mini-screen-overlay {
-  opacity: 1;
-}
-
 .mini-info {
   padding: 8px 6px 4px;
   display: flex;
