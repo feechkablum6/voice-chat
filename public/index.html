@@ -109,54 +109,73 @@
   <!-- Room Screen -->
   <div id="room" class="screen">
     <div class="room-layout">
-      <div class="sidebar">
+      <div class="bg-noise"></div>
+
+      <header class="top-bar">
         <h1 class="logo-small">Voice Chat</h1>
-        <div class="sidebar-rooms" id="sidebar-room-list"></div>
-      </div>
-      <div class="main-area">
-        <div class="room-header">
-          <span class="room-icon">&#x1f50a;</span>
-          <h2 id="room-name"></h2>
-          <span id="room-count" class="room-count"></span>
+        <div class="room-info">
+          <span id="room-name" class="room-name"></span>
+          <span id="room-count" class="room-meta"></span>
         </div>
-        <div id="participants" class="participants"></div>
-        <div class="controls">
-          <button id="mute-btn" class="control-btn" title="Mute/Unmute" aria-label="Включить/выключить микрофон">
-            <svg id="mic-icon" viewBox="0 0 24 24" width="24" height="24" fill="currentColor" aria-hidden="true">
-              <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/>
-              <path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/>
-            </svg>
-            <svg id="mic-off-icon" viewBox="0 0 24 24" width="24" height="24" fill="currentColor" style="display:none" aria-hidden="true">
-              <path d="M19 11h-1.7c0 .74-.16 1.43-.43 2.05l1.23 1.23c.56-.98.9-2.09.9-3.28zm-4.02.17c0-.06.02-.11.02-.17V5c0-1.66-1.34-3-3-3S9 3.34 9 5v.18l5.98 5.99zM4.27 3L3 4.27l6.01 6.01V11c0 1.66 1.33 3 2.99 3 .22 0 .44-.03.65-.08l1.66 1.66c-.71.33-1.5.52-2.31.52-2.76 0-5.3-2.1-5.3-5.1H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c.91-.13 1.77-.45 2.54-.9L19.73 21 21 19.73 4.27 3z"/>
-            </svg>
+      </header>
+
+      <div class="room-content" id="room-content">
+        <!-- Layouts will be injected/managed here by JS -->
+        <div id="layout-grid" class="layout-grid active">
+          <!-- Fallback to keep app.js happy until Task 4 -->
+          <div id="participants" class="participants" style="width:100%;height:100%"></div>
+        </div>
+
+        <div id="layout-focus" class="layout-focus">
+          <div class="lf-main-area" id="main-screens-container"></div>
+          <div class="lf-sidebar" id="sidebar-container"></div>
+        </div>
+      </div>
+
+      <!-- UI Dock -->
+      <div class="controls-wrapper hover-sys-glow" id="dock-wrapper">
+        <div class="dock controls" id="controls">
+          <!-- Mic -->
+          <button class="ctrl-btn control-btn" id="mute-btn" title="Mute/Unmute">
+            <svg id="mic-icon" viewBox="0 0 24 24"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/><path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/></svg>
+            <svg id="mic-off-icon" style="display:none" viewBox="0 0 24 24"><path d="M19 11h-1.7c0 .74-.16 1.43-.43 2.05l1.23 1.23c.56-.98.9-2.09.9-3.28zm-4.02.17c0-.06.02-.11.02-.17V5c0-1.66-1.34-3-3-3S9 3.34 9 5v.18l5.98 5.99zM4.27 3L3 4.27l6.01 6.01V11c0 1.66 1.33 3 2.99 3 .22 0 .44-.03.65-.08l1.66 1.66c-.71.33-1.5.52-2.31.52-2.76 0-5.3-2.1-5.3-5.1H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c.91-.13 1.77-.45 2.54-.9L19.73 21 21 19.73 4.27 3z"/></svg>
           </button>
-          <button id="screen-btn" class="control-btn" title="Демонстрация экрана" aria-label="Демонстрация экрана">
-            <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor" aria-hidden="true">
-              <path d="M20 18c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2H4c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2H0v2h24v-2h-4zM4 6h16v10H4V6z"/>
-            </svg>
+
+          <!-- Deafen -->
+          <button class="ctrl-btn control-btn" id="deafen-btn" title="Deafen/Undeafen">
+            <svg id="headphones-icon" viewBox="0 0 24 24"><path d="M12 1c-4.97 0-9 4.03-9 9v7c0 1.66 1.34 3 3 3h3v-8H5v-2c0-3.87 3.13-7 7-7s7 3.13 7 7v2h-4v8h3c1.66 0 3-1.34 3-3v-7c0-4.97-4.03-9-9-9z"/></svg>
+            <svg id="headphones-off-icon" style="display:none" viewBox="0 0 24 24"><path d="M12 1c-4.97 0-9 4.03-9 9v7c0 1.66 1.34 3 3 3h3v-8H5v-2c0-3.87 3.13-7 7-7s7 3.13 7 7v2h-4v8h3c1.66 0 3-1.34 3-3v-7c0-4.97-4.03-9-9-9z"/><line x1="3" y1="3" x2="21" y2="21" stroke="currentColor" stroke-width="2"/></svg>
           </button>
-          <button id="chat-btn" class="control-btn" title="Чат" aria-label="Открыть чат">
-            <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor" aria-hidden="true">
-              <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z"/>
-            </svg>
+
+          <!-- Screen Share -->
+          <button class="ctrl-btn control-btn" id="screen-btn" title="Share Screen">
+            <svg viewBox="0 0 24 24"><path d="M20 18c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2H4c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2H0v2h24v-2h-4zM4 6h16v10H4V6z"/></svg>
+          </button>
+
+          <!-- Chat -->
+          <button class="ctrl-btn control-btn" id="chat-btn" title="Open Chat">
+            <svg viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z"/></svg>
             <span id="chat-unread" class="chat-unread" style="display:none">0</span>
           </button>
-          <button id="deafen-btn" class="control-btn" title="Deafen/Undeafen" aria-label="Включить/выключить звук">
-            <svg id="headphones-icon" viewBox="0 0 24 24" width="24" height="24" fill="currentColor" aria-hidden="true">
-              <path d="M12 1c-4.97 0-9 4.03-9 9v7c0 1.66 1.34 3 3 3h3v-8H5v-2c0-3.87 3.13-7 7-7s7 3.13 7 7v2h-4v8h3c1.66 0 3-1.34 3-3v-7c0-4.97-4.03-9-9-9z"/>
-            </svg>
-            <svg id="headphones-off-icon" viewBox="0 0 24 24" width="24" height="24" fill="currentColor" style="display:none" aria-hidden="true">
-              <path d="M12 1c-4.97 0-9 4.03-9 9v7c0 1.66 1.34 3 3 3h3v-8H5v-2c0-3.87 3.13-7 7-7s7 3.13 7 7v2h-4v8h3c1.66 0 3-1.34 3-3v-7c0-4.97-4.03-9-9-9z"/>
-              <line x1="3" y1="3" x2="21" y2="21" stroke="currentColor" stroke-width="2"/>
-            </svg>
-          </button>
-          <button id="leave-btn" class="control-btn leave" title="Отключиться" aria-label="Отключиться">
-            <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor" aria-hidden="true">
-              <path d="M12 9c-1.6 0-3.15.25-4.6.72v3.1c0 .39-.23.74-.56.9-.98.49-1.87 1.12-2.66 1.85-.18.18-.43.28-.7.28-.28 0-.53-.11-.71-.29L.29 13.08c-.18-.17-.29-.42-.29-.7 0-.28.11-.53.29-.71C3.34 8.78 7.46 7 12 7s8.66 1.78 11.71 4.67c.18.18.29.43.29.71 0 .28-.11.53-.29.71l-2.48 2.48c-.18.18-.43.29-.71.29-.27 0-.52-.11-.7-.28-.79-.74-1.69-1.36-2.67-1.85-.33-.16-.56-.5-.56-.9v-3.1C15.15 9.25 13.6 9 12 9z"/>
-            </svg>
+
+          <!-- Leave -->
+          <button class="ctrl-btn control-btn leave danger" id="leave-btn" title="Leave Room">
+            <svg viewBox="0 0 24 24"><path d="M10.09 15.59L11.5 17l5-5-5-5-1.41 1.41L12.67 11H3v2h9.67l-2.58 2.59zM19 3H5c-1.11 0-2 .9-2 2v4h2V5h14v14H5v-4H3v4c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2z"/></svg>
           </button>
         </div>
       </div>
+
+      <div id="context-menu" class="context-menu" style="display:none">
+        <div class="ctx-item" id="ctx-swap">
+          <svg viewBox="0 0 24 24"><path d="M19 8l-4 4h3c0 3.31-2.69 6-6 6-1.01 0-1.97-.25-2.8-.7l-1.46 1.46C8.97 19.54 10.43 20 12 20c4.42 0 8-3.58 8-8h3l-4-4zM6 12c0-3.31 2.69-6 6-6 1.01 0 1.97.25 2.8.7l1.46-1.46C15.03 4.46 13.57 4 12 4c-4.42 0-8 3.58-8 8H1l4 4 4-4H6z"/></svg>
+          <span>Смотреть вместо текущей</span>
+        </div>
+        <div class="ctx-item" id="ctx-split">
+          <svg viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-9 14H5V5h5v12zm9 0h-5V5h5v12z"/></svg>
+          <span>Разделить экран (Сплит-скрин)</span>
+        </div>
+      </div>
+
       <div id="chat-panel" class="chat-panel">
         <div class="chat-header">
           <h3>Чат</h3>
@@ -168,6 +187,9 @@
           <input type="text" id="chat-input" name="message" placeholder="Написать сообщение…" maxlength="500" autocomplete="off">
         </div>
       </div>
+
+      <!-- Keep this hidden so app.js doesn't crash searching for it -->
+      <div id="sidebar-room-list" style="display:none"></div>
     </div>
   </div>
 
