@@ -1457,6 +1457,21 @@ body {
   fill: currentColor;
 }
 
+/* ===== SCREEN SHARE BTN ACTIVE STATE ===== */
+.ctrl-btn.sharing {
+  color: #e05555;
+  animation: share-pulse 2s ease-in-out infinite;
+}
+
+.ctrl-btn.sharing svg {
+  fill: #e05555;
+}
+
+@keyframes share-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(224, 85, 85, 0); }
+  50%      { box-shadow: 0 0 0 4px rgba(224, 85, 85, 0.3); }
+}
+
 /* ===== FLIP ANIMATION UTILITY ===== */
 .flip-animating {
   transition: none !important;
