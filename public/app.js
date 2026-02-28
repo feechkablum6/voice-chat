@@ -18,6 +18,17 @@ let unreadCount = 0;
 let screenStream = null;
 const activeScreenShares = new Map(); // peerId -> { stream, videoEl, username }
 
+const SCREEN_QUALITY = {
+  '720p':  { width: 1280, height: 720,  bitrate: 1_000_000 },
+  '1080p': { width: 1920, height: 1080, bitrate: 2_500_000 },
+  '1440p': { width: 2560, height: 1440, bitrate: 4_000_000 },
+};
+let screenSettings = {
+  fps: parseInt(localStorage.getItem('screen-fps')) || 30,
+  quality: localStorage.getItem('screen-quality') || '1080p',
+};
+let activeScreenPopup = null;
+
 const AVATAR_COLORS = ['#d4915c','#c0392b','#e67e22','#f1c40f','#2ecc71','#1abc9c','#3498db','#9b59b6','#e84393','#6c5ce7'];
 const AVATAR_ICONS = ['🐱','🐶','🐻','🦊','🐧','🦅','🦄','🐉','🐼','🐰','🦎','🐙','🐢','🦋','🐌'];
 
@@ -554,6 +565,16 @@ async function createPeerConnection(peerId, peerUsername, peerAvatar, isInitiato
       const sender = pc.addTrack(videoTrack, screenStream);
       const peerData = peers.get(peerId);
       if (peerData) peerData.screenSender = sender;
+      // Cap bitrate for this peer too
+      try {
+        const params = sender.getParameters();
+        if (!params.encodings || params.encodings.length === 0) {
+          params.encodings = [{}];
+        }
+        params.encodings[0].maxBitrate = getScreenBitrate();
+        params.encodings[0].maxFramerate = screenSettings.fps;
+        sender.setParameters(params).catch(() => {});
+      } catch (e) {}
     }
   }
 
@@ -795,6 +816,50 @@ function toggleChat() {
     chatUnread.style.display = 'none';
     chatInput.focus();
   }
+  adjustPipForChat();
+}
+
+function adjustPipForChat() {
+  if (selfPip.style.display === 'none') return;
+  if (selfPip.classList.contains('dragging')) return;
+
+  const pipRight = parseFloat(selfPip.style.right) || 20;
+  const pipBottom = parseFloat(selfPip.style.bottom) || 90;
+
+  if (isChatOpen) {
+    // Check if PiP overlaps with chat default position
+    const chatRight = parseFloat(getComputedStyle(chatPanel).right) || 20;
+    const chatBottom = parseFloat(getComputedStyle(chatPanel).bottom) || 90;
+    const chatW = chatPanel.offsetWidth || 340;
+    const chatH = chatPanel.offsetHeight || 420;
+
+    const pipW = selfPip.offsetWidth || 200;
+    const pipH = (selfPip.offsetHeight || 130) + 22;
+
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+
+    // Convert right/bottom to left/top for overlap check
+    const pipLeft = vw - pipRight - pipW;
+    const pipTop = vh - pipBottom - pipH;
+    const chatLeft = vw - chatRight - chatW;
+    const chatTop = vh - chatBottom - chatH;
+
+    const overlapH = pipLeft < chatLeft + chatW && pipLeft + pipW > chatLeft;
+    const overlapV = pipTop < chatTop + chatH && pipTop + pipH > chatTop;
+
+    if (overlapH && overlapV) {
+      // Move PiP above the chat panel
+      const newBottom = chatBottom + chatH + 12;
+      selfPip.style.bottom = newBottom + 'px';
+    }
+  } else {
+    // Reset to default position if it was pushed up
+    const currentBottom = parseFloat(selfPip.style.bottom) || 90;
+    if (currentBottom > 300) {
+      selfPip.style.bottom = '90px';
+    }
+  }
 }
 
 function closeChat() {
@@ -815,6 +880,7 @@ document.addEventListener('pointerdown', (e) => {
   if (!isChatOpen) return;
   if (chatPanel.contains(e.target)) return;
   if (e.target === chatBtn || chatBtn.contains(e.target)) return;
+  if (selfPip.contains(e.target)) return;
   closeChat();
 });
 
@@ -1206,19 +1272,139 @@ async function toggleScreenShare() {
     stopScreenShare();
     return;
   }
+  showScreenSettingsPopup();
+}
+
+function showScreenSettingsPopup() {
+  closeScreenSettingsPopup();
+  const popup = document.createElement('div');
+  popup.className = 'screen-settings-popup';
+  popup.id = 'screen-settings-popup';
+  activeScreenPopup = popup;
+
+  const fps = screenSettings.fps;
+  const quality = screenSettings.quality;
+
+  popup.innerHTML = `
+    <div class="ssp-header">Настройки демонстрации</div>
+    <div class="ssp-section">
+      <label>Качество</label>
+      <div class="ssp-options" id="ssp-quality">
+        ${Object.keys(SCREEN_QUALITY).map(q => `<button class="ssp-opt${q === quality ? ' active' : ''}" data-val="${q}">${q}</button>`).join('')}
+      </div>
+    </div>
+    <div class="ssp-section">
+      <label>FPS</label>
+      <div class="ssp-options" id="ssp-fps">
+        ${[15, 30, 60].map(f => `<button class="ssp-opt${f === fps ? ' active' : ''}" data-val="${f}">${f}</button>`).join('')}
+      </div>
+    </div>
+    <div class="ssp-info" id="ssp-info">${getSettingsInfo(quality, fps)}</div>
+    <div class="ssp-actions">
+      <button class="ssp-cancel" id="ssp-cancel">Отмена</button>
+      <button class="ssp-start" id="ssp-start">Начать</button>
+    </div>
+  `;
+
+  document.body.appendChild(popup);
+  requestAnimationFrame(() => popup.classList.add('show'));
+
+  // Quality buttons
+  popup.querySelectorAll('#ssp-quality .ssp-opt').forEach(btn => {
+    btn.addEventListener('click', () => {
+      popup.querySelectorAll('#ssp-quality .ssp-opt').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      screenSettings.quality = btn.dataset.val;
+      localStorage.setItem('screen-quality', screenSettings.quality);
+      popup.querySelector('#ssp-info').textContent = getSettingsInfo(screenSettings.quality, screenSettings.fps);
+    });
+  });
+
+  // FPS buttons
+  popup.querySelectorAll('#ssp-fps .ssp-opt').forEach(btn => {
+    btn.addEventListener('click', () => {
+      popup.querySelectorAll('#ssp-fps .ssp-opt').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      screenSettings.fps = parseInt(btn.dataset.val);
+      localStorage.setItem('screen-fps', String(screenSettings.fps));
+      popup.querySelector('#ssp-info').textContent = getSettingsInfo(screenSettings.quality, screenSettings.fps);
+    });
+  });
+
+  popup.querySelector('#ssp-cancel').addEventListener('click', closeScreenSettingsPopup);
+  popup.querySelector('#ssp-start').addEventListener('click', async () => {
+    closeScreenSettingsPopup();
+    await startScreenShare();
+  });
+
+  // Close on outside click (delayed)
+  setTimeout(() => {
+    document.addEventListener('click', screenPopupOutsideClick);
+  }, 10);
+}
+
+function screenPopupOutsideClick(e) {
+  if (activeScreenPopup && !activeScreenPopup.contains(e.target) && e.target !== screenBtn && !screenBtn.contains(e.target)) {
+    closeScreenSettingsPopup();
+  }
+}
+
+function closeScreenSettingsPopup() {
+  document.removeEventListener('click', screenPopupOutsideClick);
+  if (activeScreenPopup) {
+    activeScreenPopup.remove();
+    activeScreenPopup = null;
+  }
+}
+
+function getSettingsInfo(quality, fps) {
+  const q = SCREEN_QUALITY[quality];
+  const mbps = (q.bitrate / 1_000_000).toFixed(1);
+  const load = fps >= 60 ? 'Высокая' : fps >= 30 ? 'Средняя' : 'Низкая';
+  return `${q.width}×${q.height} · ${fps} кадров/с · ~${mbps} Мбит/с · Нагрузка: ${load}`;
+}
+
+function getScreenBitrate() {
+  const q = SCREEN_QUALITY[screenSettings.quality];
+  // Scale bitrate with fps: base is for 30fps
+  return Math.round(q.bitrate * (screenSettings.fps / 30));
+}
+
+async function startScreenShare() {
+  const q = SCREEN_QUALITY[screenSettings.quality];
+  const fps = screenSettings.fps;
 
   try {
-    screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
+    screenStream = await navigator.mediaDevices.getDisplayMedia({
+      video: {
+        width: { ideal: q.width, max: q.width },
+        height: { ideal: q.height, max: q.height },
+        frameRate: { ideal: fps, max: fps },
+      },
+      audio: false,
+    });
   } catch (err) {
     return; // User cancelled
   }
 
-  screenStream.getVideoTracks()[0].onended = () => stopScreenShare();
+  const videoTrack = screenStream.getVideoTracks()[0];
+  videoTrack.contentHint = 'detail'; // optimize encoder for screen content (sharp text)
+  videoTrack.onended = () => stopScreenShare();
 
-  // Add video track to all peer connections
+  // Add video track to all peer connections with bitrate cap
   for (const [peerId, peer] of peers) {
-    const sender = peer.pc.addTrack(screenStream.getVideoTracks()[0], screenStream);
+    const sender = peer.pc.addTrack(videoTrack, screenStream);
     peer.screenSender = sender;
+    // Cap bitrate to reduce CPU/bandwidth
+    try {
+      const params = sender.getParameters();
+      if (!params.encodings || params.encodings.length === 0) {
+        params.encodings = [{}];
+      }
+      params.encodings[0].maxBitrate = getScreenBitrate();
+      params.encodings[0].maxFramerate = screenSettings.fps;
+      await sender.setParameters(params);
+    } catch (e) {}
     // Renegotiate
     const offer = await peer.pc.createOffer();
     await peer.pc.setLocalDescription(offer);
@@ -1367,10 +1553,28 @@ function restoreToFocus() {
 function renderGridContent() {
   participantsEl.innerHTML = '';
 
+  // Show restore banner if minimized with active shares
+  if (focusMinimized && activeScreenShares.size > 0) {
+    const banner = document.createElement('button');
+    banner.className = 'restore-focus-banner';
+    banner.type = 'button';
+    const count = activeScreenShares.size;
+    banner.innerHTML = `
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M20 18c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2H4c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2H0v2h24v-2h-4zM4 6h16v10H4V6z"/></svg>
+      <span>${count === 1 ? 'Идёт демонстрация экрана' : `${count} демонстрации экрана`} — нажмите для просмотра</span>
+    `;
+    banner.addEventListener('click', () => restoreToFocus());
+    participantsEl.appendChild(banner);
+  }
+
   // Add self
   const selfEl = createParticipantEl(myId, username, true, { color: selectedColor, icon: selectedIcon }, null);
   if (activeScreenShares.has(myId)) {
-    selfEl.classList.add('is-sharing');
+    // Add streaming label instead of is-sharing overlay
+    const streamLabel = document.createElement('div');
+    streamLabel.className = 'participant-streaming-label';
+    streamLabel.innerHTML = `стримишь <span class="streaming-reminder">(Не забывай)</span>`;
+    selfEl.appendChild(streamLabel);
   }
   participantsEl.appendChild(selfEl);
 
@@ -1528,10 +1732,12 @@ function createMiniCard(id, name, isSelf, avatar, peerState) {
   card.innerHTML = `
     <div class="mini-avatar" style="background: ${avatarColor}">
       ${avatarIcon}
-      ${miniBadges ? '<div class="status-badges">' + miniBadges + '</div>' : ''}
     </div>
-    <div class="mini-name">${escapeHtml(name)}</div>
-    ${isSelf ? '<div class="mini-you">ты</div>' : ''}
+    <div class="mini-info-col">
+      <div class="mini-name">${escapeHtml(name)}</div>
+      ${isSelf ? '<div class="mini-you">ты</div>' : ''}
+    </div>
+    ${miniBadges ? '<div class="mini-status-icons">' + miniBadges + '</div>' : ''}
   `;
 
   if (isSelf) {
@@ -1551,12 +1757,49 @@ function createMiniCard(id, name, isSelf, avatar, peerState) {
 
 function swapFocusedShare(newPeerId) {
   if (!activeScreenShares.has(newPeerId)) return;
+  if (newPeerId === focusedShareId) return;
 
-  const allEls = [...mainScreensContainer.children, ...sidebarContainer.children];
-  animateFLIP(allEls, () => {
+  // Determine slide direction based on tab order
+  const shares = Array.from(activeScreenShares.keys());
+  const oldIndex = shares.indexOf(focusedShareId);
+  const newIndex = shares.indexOf(newPeerId);
+  const slideLeft = newIndex > oldIndex; // new tab is to the right → slide content left
+
+  // Animate out the current share item
+  const currentItem = mainScreensContainer.querySelector('.lf-share-item');
+  if (currentItem) {
+    currentItem.style.transition = 'transform 0.45s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.45s cubic-bezier(0.16, 1, 0.3, 1)';
+    currentItem.style.transform = `translateX(${slideLeft ? '-60%' : '60%'})`;
+    currentItem.style.opacity = '0';
+
+    setTimeout(() => {
+      focusedShareId = newPeerId;
+      renderFocusContent();
+
+      // Animate in the new share item
+      const newItem = mainScreensContainer.querySelector('.lf-share-item');
+      if (newItem) {
+        newItem.style.transition = 'none';
+        newItem.style.transform = `translateX(${slideLeft ? '60%' : '-60%'})`;
+        newItem.style.opacity = '0';
+
+        requestAnimationFrame(() => {
+          newItem.style.transition = 'transform 0.45s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.45s cubic-bezier(0.16, 1, 0.3, 1)';
+          newItem.style.transform = 'translateX(0)';
+          newItem.style.opacity = '1';
+
+          setTimeout(() => {
+            newItem.style.transition = '';
+            newItem.style.transform = '';
+            newItem.style.opacity = '';
+          }, 460);
+        });
+      }
+    }, 300);
+  } else {
     focusedShareId = newPeerId;
     renderFocusContent();
-  });
+  }
 }
 
 // ===== Context Menu =====
