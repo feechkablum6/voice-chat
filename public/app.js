@@ -123,6 +123,9 @@ const sidebarContainer = document.getElementById('sidebar-container');
 const contextMenu = document.getElementById('context-menu');
 const ctxSwap = document.getElementById('ctx-swap');
 const ctxSplit = document.getElementById('ctx-split');
+const presenterBar = document.getElementById('presenter-bar');
+const presenterTabs = document.getElementById('presenter-tabs');
+const presenterMinimizeBtn = document.getElementById('presenter-minimize-btn');
 
 // Layout state
 let currentLayout = 'grid'; // 'grid' | 'focus'
