@@ -18,8 +18,8 @@ let unreadCount = 0;
 let screenStream = null;
 const activeScreenShares = new Map(); // peerId -> { stream, videoEl, username }
 
-const AVATAR_COLORS = ['#5865f2','#ed4245','#3ba55c','#faa61a','#9b59b6','#e67e22','#e91e63','#1abc9c'];
-const AVATAR_ICONS = ['🐱','🤖','🔥','👻','🎮','🎵','💀','🦊','🌙','⚡','🎯','🍕'];
+const AVATAR_COLORS = ['#d4915c','#c0392b','#e67e22','#f1c40f','#2ecc71','#1abc9c','#3498db','#9b59b6','#e84393','#6c5ce7'];
+const AVATAR_ICONS = ['🐱','🐶','🐻','🦊','🐧','🦅','🦄','🐉','🐼','🐰','🦎','🐙','🐢','🦋','🐌'];
 
 let selectedColor = localStorage.getItem('avatar-color') || AVATAR_COLORS[0];
 let selectedIcon = localStorage.getItem('avatar-icon') || AVATAR_ICONS[0];
@@ -123,7 +123,7 @@ function connectWS() {
       headphonesOffIcon.style.display = 'none';
 
       showLobbyScreen();
-      showToast('Соединение потеряно — переподключение...', true);
+      showToast('Соединение потеряно — переподключение…', true);
     }
     setTimeout(() => {
       reconnectDelay = Math.min(reconnectDelay * 2, 30000);
@@ -243,8 +243,9 @@ function handleMessage(msg) {
 function renderRoomList() {
   roomListEl.innerHTML = '';
   for (const room of roomsData) {
-    const el = document.createElement('div');
+    const el = document.createElement('button');
     el.className = 'room-item';
+    el.type = 'button';
     const isFull = room.count >= 10;
 
     let avatarsHTML = '';
@@ -274,7 +275,8 @@ function renderRoomList() {
 function renderSidebarRooms() {
   sidebarRoomListEl.innerHTML = '';
   for (const room of roomsData) {
-    const el = document.createElement('div');
+    const el = document.createElement('button');
+    el.type = 'button';
     el.className = 'sidebar-room' + (room.name === currentRoom ? ' active' : '');
     el.innerHTML = `
       <span class="sidebar-room-icon">&#x1f50a;</span>
@@ -356,17 +358,21 @@ function createParticipantEl(id, name, isSelf, avatar, peerState) {
 
 // ===== Screen Navigation =====
 function showRoomScreen() {
-  lobbyScreen.classList.remove('active');
-  roomScreen.classList.add('active');
   roomNameEl.textContent = currentRoom;
   const room = roomsData.find(r => r.name === currentRoom);
   roomCountEl.textContent = room ? `${room.count}/10` : '';
   renderParticipants();
   renderSidebarRooms();
+
+  // Slide: lobby out right, room in from left
+  lobbyScreen.classList.add('slide-out');
+  lobbyScreen.classList.remove('active');
+  roomScreen.classList.add('active');
 }
 
 function showLobbyScreen() {
   roomScreen.classList.remove('active');
+  lobbyScreen.classList.remove('slide-out');
   lobbyScreen.classList.add('active');
   currentRoom = null;
   renderRoomList();
@@ -841,7 +847,8 @@ function renderScreenShares() {
       const pipBtn = document.createElement('button');
       pipBtn.className = 'screenshare-pip-btn';
       pipBtn.title = 'Picture-in-Picture';
-      pipBtn.innerHTML = `<svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M19 11h-8v6h8v-6zm4 8V4.98C23 3.88 22.1 3 21 3H3c-1.1 0-2 .88-2 1.98V19c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2zm-2 .02H3V4.97h18v14.05z"/></svg>`;
+      pipBtn.setAttribute('aria-label', 'Picture-in-Picture');
+      pipBtn.innerHTML = `<svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true"><path d="M19 11h-8v6h8v-6zm4 8V4.98C23 3.88 22.1 3 21 3H3c-1.1 0-2 .88-2 1.98V19c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2zm-2 .02H3V4.97h18v14.05z"/></svg>`;
       pipBtn.addEventListener('click', async (e) => {
         e.stopPropagation();
         try {
@@ -856,8 +863,14 @@ function renderScreenShares() {
       item.appendChild(pipBtn);
     }
 
+    item.setAttribute('role', 'button');
+    item.setAttribute('tabindex', '0');
+    item.setAttribute('aria-label', `Экран ${share.username}`);
     item.addEventListener('click', () => {
       item.classList.toggle('focused');
+    });
+    item.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); item.classList.toggle('focused'); }
     });
     area.appendChild(item);
   }
@@ -882,12 +895,12 @@ function showProfilePopup(anchorEl) {
 
   let colorsHTML = '';
   for (const color of AVATAR_COLORS) {
-    colorsHTML += `<div class="color-option${color === tempColor ? ' selected' : ''}" data-color="${color}" style="background:${color}"></div>`;
+    colorsHTML += `<div class="color-option${color === tempColor ? ' selected' : ''}" data-color="${color}" style="background:${color}" role="button" tabindex="0" aria-label="Цвет ${color}"></div>`;
   }
 
   let iconsHTML = '';
   for (const icon of AVATAR_ICONS) {
-    iconsHTML += `<div class="icon-option${icon === tempIcon ? ' selected' : ''}" data-icon="${icon}">${icon}</div>`;
+    iconsHTML += `<div class="icon-option${icon === tempIcon ? ' selected' : ''}" data-icon="${icon}" role="button" tabindex="0" aria-label="Иконка ${icon}">${icon}</div>`;
   }
 
   popup.innerHTML = `
@@ -916,19 +929,27 @@ function showProfilePopup(anchorEl) {
 
   // Color clicks
   popup.querySelectorAll('.profile-colors .color-option').forEach(el => {
-    el.addEventListener('click', () => {
+    const selectColor = () => {
       tempColor = el.dataset.color;
       popup.querySelectorAll('.profile-colors .color-option').forEach(e => e.classList.remove('selected'));
       el.classList.add('selected');
+    };
+    el.addEventListener('click', selectColor);
+    el.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); selectColor(); }
     });
   });
 
   // Icon clicks
   popup.querySelectorAll('.profile-icons .icon-option').forEach(el => {
-    el.addEventListener('click', () => {
+    const selectIcon = () => {
       tempIcon = el.dataset.icon;
       popup.querySelectorAll('.profile-icons .icon-option').forEach(e => e.classList.remove('selected'));
       el.classList.add('selected');
+    };
+    el.addEventListener('click', selectIcon);
+    el.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); selectIcon(); }
     });
   });
 
@@ -996,7 +1017,7 @@ function showVolumePopup(peerId, anchorEl) {
   popup.innerHTML = `
     <div class="volume-popup-name">${escapeHtml(peer.username)}</div>
     <div class="volume-popup-slider">
-      <input type="range" min="0" max="200" value="${isLocallyMuted ? 0 : currentVolume}" id="volume-slider" ${isLocallyMuted ? 'disabled' : ''}>
+      <input type="range" min="0" max="200" value="${isLocallyMuted ? 0 : currentVolume}" id="volume-slider" aria-label="Громкость ${escapeHtml(peer.username)}" ${isLocallyMuted ? 'disabled' : ''}>
       <span class="volume-popup-value" id="volume-value">${isLocallyMuted ? '0%' : currentVolume + '%'}</span>
     </div>
     <button class="volume-popup-mute-btn ${isLocallyMuted ? 'active' : ''}" id="volume-mute-btn">
@@ -1109,13 +1130,24 @@ function initAvatarPicker() {
     const el = document.createElement('div');
     el.className = 'color-option' + (color === selectedColor ? ' selected' : '');
     el.style.background = color;
-    el.addEventListener('click', () => {
+    el.setAttribute('role', 'button');
+    el.setAttribute('tabindex', '0');
+    el.setAttribute('aria-label', `Цвет ${color}`);
+    const selectColor = () => {
       selectedColor = color;
       localStorage.setItem('avatar-color', color);
       colorPickerEl.querySelectorAll('.color-option').forEach(e => e.classList.remove('selected'));
       el.classList.add('selected');
       updateAvatarPreview();
       updateAccordionMiniAvatar();
+      // Pop animation
+      avatarPreviewEl.classList.remove('pop');
+      void avatarPreviewEl.offsetWidth;
+      avatarPreviewEl.classList.add('pop');
+    };
+    el.addEventListener('click', selectColor);
+    el.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); selectColor(); }
     });
     colorPickerEl.appendChild(el);
   }
@@ -1125,13 +1157,27 @@ function initAvatarPicker() {
     const el = document.createElement('div');
     el.className = 'icon-option' + (icon === selectedIcon ? ' selected' : '');
     el.textContent = icon;
-    el.addEventListener('click', () => {
+    el.setAttribute('role', 'button');
+    el.setAttribute('tabindex', '0');
+    el.setAttribute('aria-label', `Иконка ${icon}`);
+    const selectIcon = () => {
       selectedIcon = icon;
       localStorage.setItem('avatar-icon', icon);
       iconPickerEl.querySelectorAll('.icon-option').forEach(e => e.classList.remove('selected'));
       el.classList.add('selected');
       updateAvatarPreview();
       updateAccordionMiniAvatar();
+      // Pop animations
+      avatarPreviewEl.classList.remove('pop');
+      void avatarPreviewEl.offsetWidth;
+      avatarPreviewEl.classList.add('pop');
+      el.classList.remove('pop');
+      void el.offsetWidth;
+      el.classList.add('pop');
+    };
+    el.addEventListener('click', selectIcon);
+    el.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); selectIcon(); }
     });
     iconPickerEl.appendChild(el);
   }
@@ -1139,15 +1185,23 @@ function initAvatarPicker() {
   updateAvatarPreview();
 }
 
+function hexToRgba(hex, a) {
+  const r = parseInt(hex.slice(1,3), 16);
+  const g = parseInt(hex.slice(3,5), 16);
+  const b = parseInt(hex.slice(5,7), 16);
+  return `rgba(${r},${g},${b},${a})`;
+}
+
 function updateAvatarPreview() {
-  avatarPreviewEl.style.background = selectedColor;
+  avatarPreviewEl.style.background = hexToRgba(selectedColor, 0.2);
+  avatarPreviewEl.style.borderColor = hexToRgba(selectedColor, 0.4);
   avatarPreviewEl.textContent = selectedIcon;
 }
 
 function updateAccordionMiniAvatar() {
   const miniAvatar = document.getElementById('accordion-mini-avatar');
   if (miniAvatar) {
-    miniAvatar.style.background = selectedColor;
+    miniAvatar.style.background = hexToRgba(selectedColor, 0.3);
     miniAvatar.textContent = selectedIcon;
   }
 }
@@ -1156,16 +1210,26 @@ function updateAccordionMiniAvatar() {
 let currentStep = 1;
 
 function initAccordion() {
-  // Step 1 is active by default — avatar is pre-selected from localStorage
-  // So immediately complete step 1 and unlock step 2
-  completeStep(1);
+  const avatarContinueBtn = document.getElementById('avatar-continue-btn');
+  const usernameContinueBtn = document.getElementById('username-continue-btn');
 
-  // If username saved, complete step 2
+  // If returning user with saved data, auto-complete steps
   const savedUsername = localStorage.getItem('username');
   if (savedUsername) {
     usernameInput.value = savedUsername;
+    completeStep(1);
     completeStep(2);
   }
+
+  // Step 1: Avatar continue button
+  avatarContinueBtn.addEventListener('click', () => completeStep(1));
+
+  // Step 2: Username continue button
+  usernameContinueBtn.addEventListener('click', () => {
+    if (usernameInput.value.trim().length >= 1) {
+      completeStep(2);
+    }
+  });
 
   // Headers click to go back
   document.getElementById('step-avatar-header').addEventListener('click', () => goToStep(1));
@@ -1176,15 +1240,39 @@ function initAccordion() {
     if (!document.getElementById('step-rooms').classList.contains('locked')) goToStep(3);
   });
 
-  // Username input — unlock step 3 when typing
+  // Char counter
+  const charCountEl = document.getElementById('char-count');
+  const updateCharCount = () => {
+    const len = usernameInput.value.length;
+    charCountEl.textContent = `${len}/20`;
+    charCountEl.className = 'char-count' + (len > 16 ? ' warn' : '');
+  };
+
+  // Init char count from saved value
+  updateCharCount();
+
+  // Username input — enable/disable continue button
   usernameInput.addEventListener('input', () => {
+    updateCharCount();
     if (usernameInput.value.trim().length >= 1) {
-      completeStep(2);
+      usernameContinueBtn.classList.remove('disabled');
     } else {
-      lockStep(3);
+      usernameContinueBtn.classList.add('disabled');
+      // If step 3 was unlocked, lock it back
+      if (document.getElementById('step-rooms').classList.contains('completed') ||
+          document.getElementById('step-rooms').classList.contains('active')) {
+        lockStep(3);
+      }
       document.getElementById('step-username').classList.remove('completed');
       document.getElementById('step-username').classList.add('active');
       document.getElementById('step-username-preview').style.display = 'none';
+    }
+  });
+
+  // Enter key in username input submits
+  usernameInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && usernameInput.value.trim().length >= 1) {
+      completeStep(2);
     }
   });
 }
