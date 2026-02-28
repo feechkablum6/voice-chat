@@ -1,8 +1,19 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## Overview
+
+Веб-приложение голосового чата на WebRTC. Node.js + Express + ws (WebSocket) для signaling. Без фреймворков на фронтенде.
+
 # Voice Chat
 
 ## Quick Start
 
 ```bash
+# Установка зависимостей
+npm install
+
 # 1. Запустить сервер
 node server.js &
 

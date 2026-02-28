@@ -86,6 +86,18 @@ wss.on('connection', (ws) => {
           return;
         }
 
+        // Check if username is already taken in the room
+        for (const [memberId, member] of room) {
+          if (memberId !== id && member.username === uname) {
+            ws.send(JSON.stringify({ type: 'error', message: 'Эй, поменяй ник — уже занято!' }));
+            return;
+          }
+          if (memberId !== id && msg.avatar && member.avatar?.icon === msg.avatar.icon && member.avatar?.color === msg.avatar.color) {
+            ws.send(JSON.stringify({ type: 'error', message: 'Эй, поменяй аватарку — уже занята!' }));
+            return;
+          }
+        }
+
         // Leave current room first
         if (currentRoom) {
           const oldRoom = rooms.get(currentRoom);
