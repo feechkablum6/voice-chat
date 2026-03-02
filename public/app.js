@@ -1352,8 +1352,10 @@ function screenPopupOutsideClick(e) {
 function closeScreenSettingsPopup() {
   document.removeEventListener('click', screenPopupOutsideClick);
   if (activeScreenPopup) {
-    activeScreenPopup.remove();
+    const popup = activeScreenPopup;
     activeScreenPopup = null;
+    popup.classList.remove('show');
+    popup.addEventListener('transitionend', () => popup.remove(), { once: true });
   }
 }
 
